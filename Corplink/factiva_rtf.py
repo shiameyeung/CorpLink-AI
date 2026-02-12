@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 from striprtf.striprtf import rtf_to_text
 
@@ -25,6 +25,7 @@ class FactivaRecord:
     date_yyyy_mm_dd: str  # "YYYY-MM-DD" or ""
     body: str
 
+
 def read_rtf_text(path: Path) -> str:
     raw = path.read_text(errors="ignore")
     txt = rtf_to_text(raw)
@@ -34,10 +35,14 @@ def read_rtf_text(path: Path) -> str:
     txt = re.sub(r"\n{3,}", "\n\n", txt)
     return txt.strip()
 
+
+def _clean_line(ln: str) -> str:
+    # 去掉不可见字符与全角空格
+    return ln.replace("\u00a0", " ").replace("\u200b", "").strip()
+
+
 def _normalize_lines(text: str) -> List[str]:
-    # striprtf 之后会有很多前后空格
-    lines = [ln.strip() for ln in text.split("\n")]
-    # 保留空行（用于分段），但去掉连续空行可以减噪
+    lines = [_clean_line(ln) for ln in text.split("\n")]
     out: List[str] = []
     last_blank = False
     for ln in lines:
@@ -48,11 +53,42 @@ def _normalize_lines(text: str) -> List[str]:
         last_blank = blank
     return out
 
+
+def _parse_head_datetime_from_lines(lines: List[str]) -> Tuple[str, Optional[int]]:
+    """
+    兼容两种头部日期：
+    1) 单行：2025 12 25 21:05
+    2) 多行拆分（含 年/月/日 分隔）
+    """
+    # 1) 单行形式
+    for idx, ln in enumerate(lines):
+        m = HEAD_DATETIME.search(ln)
+        if m:
+            yyyy, mm, dd, _hhmm = m.groups()
+            return f"{yyyy}-{int(mm):02d}-{int(dd):02d}", idx
+
+    # 2) 多行拆分形式：收集数字 token
+    tokens: List[Tuple[int, str]] = []
+    for idx, ln in enumerate(lines):
+        for tok in re.findall(r"\d{1,4}(?::\d{2})?", ln):
+            tokens.append((idx, tok))
+
+    for i, (line_idx, tok) in enumerate(tokens):
+        if re.fullmatch(r"20\d{2}", tok):
+            if i + 3 < len(tokens):
+                mm = tokens[i + 1][1]
+                dd = tokens[i + 2][1]
+                hhmm = tokens[i + 3][1]
+                if (re.fullmatch(r"\d{1,2}", mm)
+                        and re.fullmatch(r"\d{1,2}", dd)
+                        and re.fullmatch(r"\d{1,2}:\d{2}", hhmm)):
+                    yyyy = int(tok)
+                    return f"{yyyy:04d}-{int(mm):02d}-{int(dd):02d}", tokens[i + 3][0]
+    return "", None
+
+
 def parse_records_from_text(text: str) -> List[FactivaRecord]:
     lines = _normalize_lines(text)
-
-    # 经验规则：一条新闻开头是一个“非空标题行”，紧跟一个“纯数字行”（字数）
-    # 再往后若能在接下来的少数行里找到 HEAD_DATETIME，就认为这是一条 record 的 header
     records: List[FactivaRecord] = []
 
     i = 0
@@ -68,44 +104,34 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
             i += 1
             continue
 
-        # 在后面 10 行里找 head datetime 和 publisher
-        window = "\n".join(lines[i : min(i + 12, n)])
-        mdt = HEAD_DATETIME.search(window)
-        if not mdt:
+        window = lines[i: min(i + 18, n)]
+        date_yyyy_mm_dd, dt_rel_idx = _parse_head_datetime_from_lines(window)
+        if not date_yyyy_mm_dd:
             i += 1
             continue
 
-        # publisher：在 datetime 之后的下一行里通常是 publisher（如 PR Newswire）
-        # 我们用“从 i 开始往后找第一个像 publisher 的非空行”作为 publisher
+        dt_line_idx = i + (dt_rel_idx if dt_rel_idx is not None else 0)
+
+        # publisher：在 datetime 之后的下一行里通常是 publisher
         pub = ""
-        # 先定位 datetime 出现在第几行
-        # 粗略：逐行扫描
-        dt_line_idx = None
-        for j in range(i, min(i + 12, n)):
-            if HEAD_DATETIME.search(lines[j]):
-                dt_line_idx = j
+        for j in range(dt_line_idx + 1, min(dt_line_idx + 6, n)):
+            if lines[j]:
+                # 跳过纯短代码行
+                if len(lines[j]) <= 6 and lines[j].isupper():
+                    continue
+                pub = lines[j]
                 break
-        if dt_line_idx is not None:
-            for j in range(dt_line_idx + 1, min(dt_line_idx + 6, n)):
-                if lines[j]:
-                    pub = lines[j]
-                    break
 
-        yyyy, mm, dd, _hhmm = mdt.groups()
-        date_yyyy_mm_dd = f"{yyyy}-{int(mm):02d}-{int(dd):02d}"
-
-        # body start：通常在 publisher/code/copyright 之后，遇到第一个看起来像正文的长句
+        # body start
         body_start = None
-        for j in range(dt_line_idx + 1 if dt_line_idx is not None else i + 2, min(i + 40, n)):
+        for j in range(dt_line_idx + 1, min(i + 50, n)):
             ln = lines[j]
             if not ln:
                 continue
             if ln.upper().startswith("COPYRIGHT"):
                 continue
-            # publisher code 一般很短（如 PRN）
             if len(ln) <= 6 and ln.isupper():
                 continue
-            # 一般正文第一行会比较长，或者包含 “--”
             if len(ln) >= 30 or "--" in ln or " /" in ln:
                 body_start = j
                 break
@@ -114,15 +140,13 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
             i += 1
             continue
 
-        # body end：下一个 record 的 title 位置（同样的模式：非空行 + 下一行纯数字）
+        # body end
         body_lines: List[str] = []
         k = body_start
         while k < n:
-            # next record start?
             if lines[k] and k + 1 < n and re.fullmatch(r"\d{2,6}", lines[k + 1] or ""):
-                # 但要避免正文中刚好出现这种组合（概率低），再加一个 datetime 检查
-                window2 = "\n".join(lines[k : min(k + 12, n)])
-                if HEAD_DATETIME.search(window2):
+                window2 = "\n".join(lines[k: min(k + 12, n)])
+                if HEAD_DATETIME.search(window2) or _parse_head_datetime_from_lines(lines[k: min(k + 12, n)])[0]:
                     break
             body_lines.append(lines[k])
             k += 1
@@ -131,4 +155,5 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
         records.append(FactivaRecord(title=title, publisher=pub, date_yyyy_mm_dd=date_yyyy_mm_dd, body=body))
 
         i = k
+
     return records
