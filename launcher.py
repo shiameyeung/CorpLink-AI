@@ -38,6 +38,14 @@ def download_file(rel_path: str):
     dest.write_bytes(r.content)
 
 def main():
+    # 关键：无论从哪里启动，都切换到 launcher.py 所在目录
+    script_dir = Path(__file__).resolve().parent
+    os.chdir(script_dir)
+
+    # 关键：��保当前目录在 sys.path，main.py 才能 import Corplink
+    if str(script_dir) not in sys.path:
+        sys.path.insert(0, str(script_dir))
+
     print("🔄 正在从GitHub获取最新版脚本与模块...")
     try:
         for f in FILES:
@@ -47,7 +55,7 @@ def main():
         sys.exit(1)
 
     print("✅ 下载完成，正在执行...\n")
-    runpy.run_path("main.py", run_name="__main__")
+    runpy.run_path(str(script_dir / "main.py"), run_name="__main__")
 
 if __name__ == "__main__":
     main()
