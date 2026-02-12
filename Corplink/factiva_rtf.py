@@ -9,6 +9,8 @@ from typing import List, Optional, Tuple
 from striprtf.striprtf import rtf_to_text
 
 HEAD_DATETIME = re.compile(r"\b(20\d{2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}:\d{2})\b")
+DATE_JP = re.compile(r"(20\d{2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}:\d{2})")
+DATE_SLASH = re.compile(r"(20\d{2})[/-](\d{1,2})[/-](\d{1,2})\s+(\d{1,2}:\d{2})")
 
 BODY_DATE = re.compile(
     r"\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|"
@@ -53,7 +55,17 @@ def _normalize_lines(text: str) -> List[str]:
     return out
 
 
-def _parse_head_datetime_from_lines(lines: List[str]) -> Tuple[str, Optional[int]]:
+def _find_header_date(lines: List[str]) -> Tuple[str, Optional[int]]:
+    for idx, ln in enumerate(lines):
+        m = DATE_JP.search(ln)
+        if m:
+            yyyy, mm, dd, _hhmm = m.groups()
+            return f"{yyyy}-{int(mm):02d}-{int(dd):02d}", idx
+        m = DATE_SLASH.search(ln)
+        if m:
+            yyyy, mm, dd, _hhmm = m.groups()
+            return f"{yyyy}-{int(mm):02d}-{int(dd):02d}", idx
+
     for idx, ln in enumerate(lines):
         m = HEAD_DATETIME.search(ln)
         if m:
@@ -86,7 +98,7 @@ def _find_wordcount(lines: List[str], start: int, max_ahead: int = 10) -> Option
     return None
 
 
-def _split_chunks_by_end(lines: List[str]) -> List[List[str]]:
+def _split_chunks(lines: List[str]) -> List[List[str]]:
     chunks: List[List[str]] = []
     buf: List[str] = []
     for ln in lines:
@@ -94,6 +106,10 @@ def _split_chunks_by_end(lines: List[str]) -> List[List[str]]:
             if buf:
                 chunks.append(buf)
                 buf = []
+            continue
+        if DOC_ID.match(ln) and buf:
+            chunks.append(buf)
+            buf = [ln]
             continue
         buf.append(ln)
     if buf:
@@ -113,10 +129,9 @@ def _find_title_index(lines: List[str]) -> Optional[int]:
             continue
         if ln.upper().startswith("COPYRIGHT"):
             continue
-        # 标题后面应该很快出现字数行或日期行
-        if _find_wordcount(lines, idx + 1, max_ahead=4) is not None:
+        if _find_wordcount(lines, idx + 1, max_ahead=6) is not None:
             return idx
-        if _parse_head_datetime_from_lines(lines[idx: idx + 10])[0]:
+        if _find_header_date(lines[idx: idx + 12])[0]:
             return idx
     return None
 
@@ -131,13 +146,13 @@ def _parse_record_from_chunk(lines: List[str]) -> Optional[FactivaRecord]:
         return None
     title = lines[title_idx]
 
-    date_yyyy_mm_dd, dt_idx = _parse_head_datetime_from_lines(lines[title_idx: min(title_idx + 40, len(lines))])
+    date_yyyy_mm_dd, dt_idx = _find_header_date(lines[title_idx: min(title_idx + 40, len(lines))])
     if dt_idx is not None:
         dt_idx = title_idx + dt_idx
 
     pub = ""
     if dt_idx is not None:
-        for j in range(dt_idx + 1, min(dt_idx + 10, len(lines))):
+        for j in range(dt_idx + 1, min(dt_idx + 12, len(lines))):
             if not lines[j]:
                 continue
             if WORDCOUNT.fullmatch(lines[j] or ""):
@@ -174,7 +189,7 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
     lines = _normalize_lines(text)
     records: List[FactivaRecord] = []
 
-    chunks = _split_chunks_by_end(lines)
+    chunks = _split_chunks(lines)
     for chunk in chunks:
         rec = _parse_record_from_chunk(chunk)
         if rec and rec.body:
