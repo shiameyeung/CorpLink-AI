@@ -142,3 +142,90 @@ def step_ai_autofill():
         f"自動入力完了！{len(updates)} 行を更新しました", 
         "🎉"
     )
+def step_ai_suggest():
+    """
+    ASSIST 模式：用 GPT 生成建议，但不覆盖 Canonical_Name。
+    结果写入 result_mapping_todo.csv 的新列：
+    - AI_Is_Company
+    - AI_Suggested_Canonical
+    - AI_Matches_Advice
+    """
+    csv_path = BASE_DIR / "result_mapping_todo.csv"
+    if not csv_path.exists():
+        cute_box("找不到 result_mapping_todo.csv！", "ファイルが見つかりません", "❌")
+        return
+
+    key_file = BASE_DIR / ".openai_key"
+    api_key = ""
+
+    if key_file.exists():
+        api_key = key_file.read_text().strip()
+        print(f"🔑 已自动加载保存的 API Key: {api_key[:8]}...")
+
+    if not api_key:
+        api_key = input("请输入 OpenAI API Key (sk-...) / APIキーを输入: ").strip()
+        if api_key:
+            key_file.write_text(api_key)
+            print("💾 API Key 已保存，下次无需输入。")
+
+    if not api_key:
+        print("❌ 未输入 Key，操作取消。")
+        return
+
+    print("⏳ 正在读取 CSV...")
+    df = pd.read_csv(csv_path, dtype=str).fillna("")
+
+    # 确保新列存在
+    for col in ["AI_Is_Company", "AI_Suggested_Canonical", "AI_Matches_Advice"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    # 只对 Canonical_Name 为空的行给建议（你也可以改成对全部行建议）
+    rows_to_process = df[df["Canonical_Name"] == ""]
+    if rows_to_process.empty:
+        print("✨ Canonical_Name 都已填写，无需生成建议。")
+        return
+
+    print(f"🤖 准备为 {len(rows_to_process)} 条数据生成 AI 建议（不覆盖 Canonical_Name）...")
+
+    batch_size = 30
+
+    data_list = []
+    for idx, row in rows_to_process.iterrows():
+        data_list.append({
+            "index": idx,
+            "alias": row.get("Alias", ""),
+            "advice": row.get("Advice", "")
+        })
+
+    for i in tqdm(range(0, len(data_list), batch_size), desc="GPT Suggest"):
+        batch = data_list[i: i + batch_size]
+        gpt_input = [{"alias": item["alias"], "advice": item["advice"]} for item in batch]
+        gpt_res = ask_gpt_batch(gpt_input, api_key)
+
+        # gpt_res 的 key 是 alias 文本（你原来就是这样用的）
+        for item in batch:
+            idx = item["index"]
+            alias = item["alias"]
+
+            res = gpt_res.get(alias)
+            if not isinstance(res, dict):
+                # GPT 无返回/解析失败：跳过即可
+                continue
+
+            is_company = bool(res.get("is_company", False))
+            clean_name = str(res.get("clean_name", "") or "")
+            matches_advice = bool(res.get("matches_advice", False))
+
+            df.at[idx, "AI_Is_Company"] = "1" if is_company else "0"
+            df.at[idx, "AI_Suggested_Canonical"] = clean_name
+            df.at[idx, "AI_Matches_Advice"] = "1" if matches_advice else "0"
+
+    print("💾 正在保存建议列（不修改 Canonical_Name）...")
+    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+    cute_box(
+        "✅ AI 建议已生成（写入新列，不覆盖 Canonical_Name）",
+        "✅ AI提案を生成しました（新しい列に保存、Canonical_Nameは変更しません）",
+        "📝"
+    )
