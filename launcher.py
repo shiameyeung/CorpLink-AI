@@ -14,6 +14,7 @@ FILES = [
     "main.py",
     "Corplink/__init__.py",
     "Corplink/options.py", 
+    "Corplink/factiva_rtf.py",
     "Corplink/config.py",
     "Corplink/constants.py",
     "Corplink/env_bootstrap.py",
