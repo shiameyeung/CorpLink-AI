@@ -52,6 +52,7 @@ def ensure_env() -> None:
         "torch",
         "transformers",
         "spacy",
+        "striprtf",
     ]
 
     py_major, py_minor = sys.version_info[:2]
