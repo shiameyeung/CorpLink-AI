@@ -7,6 +7,8 @@ from typing import List, Dict
 from docx import Document
 from tqdm import tqdm
 import numpy as np
+from .constants import BASE_DIR
+import pandas as pd
 
 from . import state
 from .factiva_rtf import read_rtf_text, parse_records_from_text
