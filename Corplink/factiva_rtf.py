@@ -16,7 +16,9 @@ BODY_DATE = re.compile(
     re.IGNORECASE,
 )
 
-WORDCOUNT = re.compile(r"\d[\d,]{1,6}")
+WORDCOUNT = re.compile(r"[\d,]+\s*(語|words?)?$", re.I)
+DOC_ID = re.compile(r"^(文書|documents?)\b", re.I)
+LANG_LINE = re.compile(r"^(英語|日本語|中文|Chinese|English|Japanese)$", re.I)
 
 @dataclass
 class FactivaRecord:
@@ -63,7 +65,7 @@ def _parse_head_datetime_from_lines(lines: List[str]) -> Tuple[str, Optional[int
         for tok in re.findall(r"\d{1,4}(?::\d{2})?", ln):
             tokens.append((idx, tok))
 
-    for i, (line_idx, tok) in enumerate(tokens):
+    for i, (_, tok) in enumerate(tokens):
         if re.fullmatch(r"20\d{2}", tok):
             if i + 3 < len(tokens):
                 mm = tokens[i + 1][1]
@@ -99,14 +101,39 @@ def _split_chunks_by_end(lines: List[str]) -> List[List[str]]:
     return chunks
 
 
+def _find_title_index(lines: List[str]) -> Optional[int]:
+    for idx, ln in enumerate(lines):
+        if not ln:
+            continue
+        if DOC_ID.match(ln):
+            continue
+        if LANG_LINE.match(ln):
+            continue
+        if WORDCOUNT.fullmatch(ln):
+            continue
+        if ln.upper().startswith("COPYRIGHT"):
+            continue
+        # 标题后面应该很快出现字数行或日期行
+        if _find_wordcount(lines, idx + 1, max_ahead=4) is not None:
+            return idx
+        if _parse_head_datetime_from_lines(lines[idx: idx + 10])[0]:
+            return idx
+    return None
+
+
 def _parse_record_from_chunk(lines: List[str]) -> Optional[FactivaRecord]:
     lines = [ln for ln in lines if ln.strip()]
     if not lines:
         return None
 
-    title = lines[0]
+    title_idx = _find_title_index(lines)
+    if title_idx is None:
+        return None
+    title = lines[title_idx]
 
-    date_yyyy_mm_dd, dt_idx = _parse_head_datetime_from_lines(lines[: min(40, len(lines))])
+    date_yyyy_mm_dd, dt_idx = _parse_head_datetime_from_lines(lines[title_idx: min(title_idx + 40, len(lines))])
+    if dt_idx is not None:
+        dt_idx = title_idx + dt_idx
 
     pub = ""
     if dt_idx is not None:
@@ -117,16 +144,20 @@ def _parse_record_from_chunk(lines: List[str]) -> Optional[FactivaRecord]:
                 continue
             if len(lines[j]) <= 6 and lines[j].isupper():
                 continue
+            if LANG_LINE.match(lines[j]):
+                continue
             pub = lines[j]
             break
 
     body_start = None
-    start_scan = (dt_idx + 1) if dt_idx is not None else 0
+    start_scan = (dt_idx + 1) if dt_idx is not None else title_idx + 1
     for j in range(start_scan, len(lines)):
         ln = lines[j]
         if ln.upper().startswith("COPYRIGHT"):
             continue
         if len(ln) <= 6 and ln.isupper():
+            continue
+        if LANG_LINE.match(ln):
             continue
         if len(ln) >= 30 or "--" in ln or " /" in ln:
             body_start = j
@@ -143,7 +174,6 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
     lines = _normalize_lines(text)
     records: List[FactivaRecord] = []
 
-    # 先用 END 分块（更稳）
     chunks = _split_chunks_by_end(lines)
     for chunk in chunks:
         rec = _parse_record_from_chunk(chunk)
