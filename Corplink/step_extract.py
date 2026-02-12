@@ -12,6 +12,7 @@ import pandas as pd
 
 from . import state
 from .factiva_rtf import read_rtf_text, parse_records_from_text
+from .options import ExtractMode
 
 from .constants import DATE_FINDER, ANCHOR_TEXT, BASE_DIR
 from .env_bootstrap import cute_box
@@ -80,6 +81,42 @@ def extract_index_titles(paragraphs):
                 break
                 
     return sorted(titles, key=lambda x: x[0])
+
+def _filter_sentences(raw_sents: List[str]) -> List[Dict]:
+    recs: List[Dict] = []
+    if state.USE_SEMANTIC_FILTER and raw_sents:
+        if not hasattr(_filter_sentences, "anchor_vec"):
+            _filter_sentences.anchor_vec = model_emb.encode([ANCHOR_TEXT], normalize_embeddings=True)[0]
+        sent_vecs = model_emb.encode(raw_sents, normalize_embeddings=True)
+        sim_scores = np.dot(sent_vecs, _filter_sentences.anchor_vec)
+    else:
+        sim_scores = [0.0] * len(raw_sents)
+
+    for i, sent in enumerate(raw_sents):
+        is_hit = False
+        match_reason = ""
+        hit_count = 0
+
+        if state.USE_SEMANTIC_FILTER:
+            score = float(sim_scores[i])
+            if score > 0.45:
+                is_hit = True
+                hit_count = 1
+                match_reason = f"Semantic({score:.2f})"
+        else:
+            hits = [k for k in state.KEYWORD_ROOTS if k in sent.lower()]
+            if hits:
+                is_hit = True
+                hit_count = len(hits)
+                match_reason = "; ".join(hits)
+
+        if is_hit:
+            recs.append({
+                "Sentence": sent,
+                "Hit_Count": hit_count,
+                "Matched_Keywords": match_reason
+            })
+    return recs
 
 def extract_sentences_by_titles(filepath: str) -> List[Dict]:
     doc = Document(filepath); paras = doc.paragraphs
@@ -208,6 +245,25 @@ def extract_sentences_by_titles(filepath: str) -> List[Dict]:
             })
     return recs
 
+def extract_sentences_from_factiva(filepath: str) -> List[Dict]:
+    text = read_rtf_text(Path(filepath))
+    records = parse_records_from_text(text)
+    recs: List[Dict] = []
+
+    for record in records:
+        raw_sents = [s.strip() for s in re.split(r"\.\s*", record.body) if len(s.strip()) >= 20]
+        for hit in _filter_sentences(raw_sents):
+            recs.append({
+                "Title": record.title,
+                "Publisher": record.publisher,
+                "Date": record.date_yyyy_mm_dd,
+                "Country": "",
+                "Sentence": hit["Sentence"],
+                "Hit_Count": hit["Hit_Count"],
+                "Matched_Keywords": hit["Matched_Keywords"]
+            })
+    return recs
+
 def step1():
     cute_box(
         "Step-1：提取 Word 句子 中…",
@@ -216,23 +272,40 @@ def step1():
     )
     all_recs: List[Dict] = []
 
-    docx_files = []
-    for root, _, files in os.walk(BASE_DIR):
-        for fname in files:
-            if not fname.endswith(".docx") or fname.startswith("~$"):
-                continue
-            full = Path(root) / fname
-            rel = full.relative_to(BASE_DIR).parts
-            tier1 = rel[0] if len(rel) >= 1 else ""
-            tier2 = rel[1] if len(rel) >= 2 else ""
-            docx_files.append((str(full), tier1, tier2, fname))
+    if state.EXTRACT_MODE == ExtractMode.FACTIVA.value:
+        rtf_files = []
+        for root, _, files in os.walk(BASE_DIR):
+            for fname in files:
+                if not fname.endswith(".rtf") or fname.startswith("~$"):
+                    continue
+                full = Path(root) / fname
+                rel = full.relative_to(BASE_DIR).parts
+                tier1 = rel[0] if len(rel) >= 1 else ""
+                tier2 = rel[1] if len(rel) >= 2 else ""
+                rtf_files.append((str(full), tier1, tier2, fname))
 
-    for fp, t1, t2, fname in tqdm(docx_files, desc="📄 处理 Word 文件"):
-        for r in extract_sentences_by_titles(fp):
-            if not r["Title"]:
-                r["Title"] = Path(fname).stem
-            r.update({"Tier_1": t1, "Tier_2": t2, "Filename": fname})
-            all_recs.append(r)
+        for fp, t1, t2, fname in tqdm(rtf_files, desc="🗂️ 处理 Factiva RTF 文件"):
+            for r in extract_sentences_from_factiva(fp):
+                r.update({"Tier_1": t1, "Tier_2": t2, "Filename": fname})
+                all_recs.append(r)
+    else:
+        docx_files = []
+        for root, _, files in os.walk(BASE_DIR):
+            for fname in files:
+                if not fname.endswith(".docx") or fname.startswith("~$"):
+                    continue
+                full = Path(root) / fname
+                rel = full.relative_to(BASE_DIR).parts
+                tier1 = rel[0] if len(rel) >= 1 else ""
+                tier2 = rel[1] if len(rel) >= 2 else ""
+                docx_files.append((str(full), tier1, tier2, fname))
+
+        for fp, t1, t2, fname in tqdm(docx_files, desc="📄 处理 Word 文件"):
+            for r in extract_sentences_by_titles(fp):
+                if not r["Title"]:
+                    r["Title"] = Path(fname).stem
+                r.update({"Tier_1": t1, "Tier_2": t2, "Filename": fname})
+                all_recs.append(r)
 
     state.SENTENCE_RECORDS = all_recs
     cute_box(
