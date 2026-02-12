@@ -8,7 +8,7 @@ CorpLink-AI は、ニュースリリース・レポート等の非構造化テ�
 ## ✨ 特徴
 
 - **キーワード抽出 / 意味論フィルタ**に対応（SBERT）
-- **Word (.docx)** と **Factiva (.rtf)** の両モード対応
+- **Lexis (.docx)** と **Factiva (.rtf)** の両モード対応
 - **企業名の自動正規化**（RapidFuzz + SentenceTransformer + GPT）
 - **MySQL に名寄せデータを保存**
 - **ネットワーク分析用CSVを自動生成**
