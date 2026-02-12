@@ -51,7 +51,7 @@ Database: MySQL (MariaDB)
 
 # 初回
 ## NA_launcher.pyをダウンロードする。
-https://github.com/shiameyeung/NA/blob/main/NA_launcher.py
+[https://github.com/shiameyeung/NA/blob/main/NA_launcher.py](https://github.com/shiameyeung/NA/blob/main/NA_launcher.py)
 
 ## （Windowsのみ、macOSは不要）以下リンクからダウンロード・インストール  
 https://aka.ms/vs/17/release/vc_redist.x64.exe
