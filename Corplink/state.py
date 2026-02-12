@@ -1,0 +1,5 @@
+# coding: utf-8
+
+KEYWORD_ROOTS = []
+USE_SEMANTIC_FILTER = False
+SENTENCE_RECORDS = []
