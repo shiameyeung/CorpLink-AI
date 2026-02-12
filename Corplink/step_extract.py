@@ -8,6 +8,9 @@ from docx import Document
 from tqdm import tqdm
 import numpy as np
 
+from . import state
+from .factiva_rtf import read_rtf_text, parse_records_from_text
+
 from .constants import DATE_FINDER, ANCHOR_TEXT, BASE_DIR
 from .env_bootstrap import cute_box
 from .text_utils import _normalize, clean_text
