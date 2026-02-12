@@ -111,6 +111,15 @@ def step2(mysql_url: str):
     )
 
     df = pd.DataFrame(state.SENTENCE_RECORDS)
+    if df.empty or "Hit_Count" not in df.columns:
+        cute_box(
+            "Step-1 没提取到任何句子，请确认输入文件或抽取模式。",
+            "Step-1 で文が取得できませんでした。入力ファイルや抽出モードを確認してください。",
+            "🚫"
+        )
+        return
+
+    df_hit = df[df["Hit_Count"].astype(int) >= 1].reset_index(drop=True)
     df_hit = df[df["Hit_Count"].astype(int) >= 1].reset_index(drop=True)
     if df_hit.empty:
         cute_box(
