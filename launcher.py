@@ -2,25 +2,52 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-import requests
+import os
 import sys
+import requests
+import runpy
+from pathlib import Path
 
-URL = "https://raw.githubusercontent.com/shiameyeung/NA/main/NA_main.py"
+RAW_BASE = "https://raw.githubusercontent.com/shiameyeung/CorpLink-AI/main"
+
+FILES = [
+    "main.py",
+    "Corplink/__init__.py",
+    "Corplink/config.py",
+    "Corplink/constants.py",
+    "Corplink/env_bootstrap.py",
+    "Corplink/main.py",
+    "Corplink/model_utils.py",
+    "Corplink/state.py",
+    "Corplink/step_ai_autofill.py",
+    "Corplink/step_company.py",
+    "Corplink/step_extract.py",
+    "Corplink/step_network.py",
+    "Corplink/step_standardize.py",
+    "Corplink/text_utils.py",
+]
+
+def download_file(rel_path: str):
+    url = f"{RAW_BASE}/{rel_path}"
+    dest = Path(rel_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"⬇️ Downloading {rel_path}...")
+    r = requests.get(url)
+    r.raise_for_status()
+    dest.write_bytes(r.content)
 
 def main():
-    print("🔄 正在从GitHub获取最新版脚本...")
+    print("🔄 正在从GitHub获取最新版脚本与模块...")
     try:
-        resp = requests.get(URL)
-        resp.raise_for_status()
-        code = resp.text
+        for f in FILES:
+            download_file(f)
     except Exception as e:
         print("❌ 下载失败:", e)
         sys.exit(1)
 
     print("✅ 下载完成，正在执行...\n")
-
-    # 直接在当前进程里执行脚本
-    exec(code, globals())
+    runpy.run_path("main.py", run_name="__main__")
 
 if __name__ == "__main__":
     main()
