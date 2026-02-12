@@ -251,7 +251,9 @@ def extract_sentences_from_factiva(filepath: str) -> List[Dict]:
     recs: List[Dict] = []
 
     for record in records:
+        # 句子切分逻辑与 Lexis 保持一致
         raw_sents = [s.strip() for s in re.split(r"\.\s*", record.body) if len(s.strip()) >= 20]
+
         for hit in _filter_sentences(raw_sents):
             recs.append({
                 "Title": record.title,
@@ -263,7 +265,7 @@ def extract_sentences_from_factiva(filepath: str) -> List[Dict]:
                 "Matched_Keywords": hit["Matched_Keywords"]
             })
     return recs
-
+    
 def step1():
     cute_box(
         "Step-1：提取 Word 句子 中…",
