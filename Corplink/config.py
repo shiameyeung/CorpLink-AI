@@ -1,9 +1,9 @@
 # coding: utf-8
 from pathlib import Path
-from .env_bootstrap import cute_box
-from .constants import PRESET_KEYWORDS_2025
-from . import state
 
+from .env_bootstrap import cute_box
+from .constants import PRESET_KEYWORDS_2025, BASE_DIR
+from . import state
 from .options import RunOptions, KeywordMode, AILevel, ExtractMode
 
 def ask_mysql_url() -> str:
@@ -58,30 +58,38 @@ def wizard() -> RunOptions:
     # 3) Extract mode
     cute_box(
         "【抽取模式】请选择：\n"
-        "1. Lexis（当前）\n"
-        "2. Factiva（未实现）",
+        "1. Lexis（docx）\n"
+        "2. Factiva（rtf）",
         "【抽出モード】選択：\n"
-        "1. Lexis（現在）\n"
-        "2. Factiva（未実装）",
+        "1. Lexis（docx）\n"
+        "2. Factiva（rtf）",
         "🗂️"
     )
     e = input("👉 输入 1/2 [Default: 1]: ").strip() or "1"
     extract_mode = ExtractMode.LEXIS if e != "2" else ExtractMode.FACTIVA
-    if extract_mode == ExtractMode.FACTIVA:
-        print("⚠️ Factiva 暂未实现，本次将使用 Lexis 模式运行。")
-        extract_mode = ExtractMode.LEXIS
 
-    opts = RunOptions(
+    return RunOptions(
         keyword_mode=keyword_mode,
         custom_keywords=custom_keys,
         ai_level=ai_level,
         extract_mode=extract_mode,
     )
-    return opts
 
 def apply_options_to_state(opts: RunOptions) -> None:
-    # 关键词写入 state（你现有逻辑用 state.KEYWORD_ROOTS）
+    # Keywords
     if opts.keyword_mode == KeywordMode.CUSTOM and opts.custom_keywords:
         state.KEYWORD_ROOTS = opts.custom_keywords
     else:
         state.KEYWORD_ROOTS = PRESET_KEYWORDS_2025
+
+    # Extract mode (必修 4 需要它)
+    state.EXTRACT_MODE = opts.extract_mode.value
+
+# ====== 旧接口保留（兼容），但建议主流程不用 ======
+def configure_keywords():
+    # 兼容旧调用：默认直接写 preset
+    state.KEYWORD_ROOTS = PRESET_KEYWORDS_2025
+
+def choose() -> str:
+    # 兼容旧菜单：直接返回 "0" 等不再使用
+    return "0"
