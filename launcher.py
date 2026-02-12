@@ -13,6 +13,7 @@ RAW_BASE = "https://raw.githubusercontent.com/shiameyeung/CorpLink-AI/main"
 FILES = [
     "main.py",
     "Corplink/__init__.py",
+    "Corplink/options.py", 
     "Corplink/config.py",
     "Corplink/constants.py",
     "Corplink/env_bootstrap.py",
