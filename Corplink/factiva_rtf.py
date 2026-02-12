@@ -16,6 +16,8 @@ BODY_DATE = re.compile(
     re.IGNORECASE,
 )
 
+WORDCOUNT = re.compile(r"\d[\d,]{1,6}")
+
 @dataclass
 class FactivaRecord:
     title: str
@@ -75,6 +77,25 @@ def _parse_head_datetime_from_lines(lines: List[str]) -> Tuple[str, Optional[int
     return "", None
 
 
+def _find_wordcount(lines: List[str], start: int, max_ahead: int = 6) -> Optional[int]:
+    for j in range(start, min(start + max_ahead, len(lines))):
+        if WORDCOUNT.fullmatch(lines[j] or ""):
+            return j
+    return None
+
+
+def _is_record_start(lines: List[str], idx: int) -> bool:
+    if idx >= len(lines):
+        return False
+    if not lines[idx]:
+        return False
+    wc_idx = _find_wordcount(lines, idx + 1)
+    if wc_idx is None:
+        return False
+    window = lines[idx: min(idx + 25, len(lines))]
+    return bool(_parse_head_datetime_from_lines(window)[0])
+
+
 def parse_records_from_text(text: str) -> List[FactivaRecord]:
     lines = _normalize_lines(text)
     records: List[FactivaRecord] = []
@@ -87,11 +108,12 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
             i += 1
             continue
 
-        if i + 1 >= n or not re.fullmatch(r"\d{2,6}", lines[i + 1] or ""):
+        wc_idx = _find_wordcount(lines, i + 1)
+        if wc_idx is None:
             i += 1
             continue
 
-        window = lines[i: min(i + 18, n)]
+        window = lines[i: min(i + 25, n)]
         date_yyyy_mm_dd, dt_rel_idx = _parse_head_datetime_from_lines(window)
         if not date_yyyy_mm_dd:
             i += 1
@@ -100,15 +122,17 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
         dt_line_idx = i + (dt_rel_idx if dt_rel_idx is not None else 0)
 
         pub = ""
-        for j in range(dt_line_idx + 1, min(dt_line_idx + 6, n)):
+        for j in range(dt_line_idx + 1, min(dt_line_idx + 10, n)):
             if lines[j]:
                 if len(lines[j]) <= 6 and lines[j].isupper():
+                    continue
+                if WORDCOUNT.fullmatch(lines[j] or ""):
                     continue
                 pub = lines[j]
                 break
 
         body_start = None
-        for j in range(dt_line_idx + 1, min(i + 50, n)):
+        for j in range(dt_line_idx + 1, min(i + 80, n)):
             ln = lines[j]
             if not ln:
                 continue
@@ -127,14 +151,14 @@ def parse_records_from_text(text: str) -> List[FactivaRecord]:
         body_lines: List[str] = []
         k = body_start
         while k < n:
-            if lines[k] and k + 1 < n and re.fullmatch(r"\d{2,6}", lines[k + 1] or ""):
-                if _parse_head_datetime_from_lines(lines[k: min(k + 12, n)])[0]:
-                    break
+            if _is_record_start(lines, k):
+                break
             body_lines.append(lines[k])
             k += 1
 
         body = "\n".join(body_lines).strip()
         records.append(FactivaRecord(title=title, publisher=pub, date_yyyy_mm_dd=date_yyyy_mm_dd, body=body))
+
         i = k
 
     return records
