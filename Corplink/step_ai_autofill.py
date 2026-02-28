@@ -78,7 +78,7 @@ def step_ai_autofill():
         print(f"🔑 已自动加载保存的 API Key: {api_key[:8]}...")
     
     if not api_key:
-        api_key = input("请输入 OpenAI API Key (sk-...) / APIキーを输入: ").strip()
+        api_key = WEB_CONFIG.get("run_ai_autofill", "y")
         if api_key:
             key_file.write_text(api_key)
             print("💾 API Key 已保存，下次无需输入。")
@@ -163,7 +163,7 @@ def step_ai_suggest():
         print(f"🔑 已自动加载保存的 API Key: {api_key[:8]}...")
 
     if not api_key:
-        api_key = input("请输入 OpenAI API Key (sk-...) / APIキーを输入: ").strip()
+        api_key = WEB_CONFIG.get("run_ai_autofill", "y")
         if api_key:
             key_file.write_text(api_key)
             print("💾 API Key 已保存，下次无需输入。")

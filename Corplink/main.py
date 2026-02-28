@@ -30,7 +30,7 @@ def main():
 
     # ====== 第二次运行：检测到 todo 已存在，允许直接从 Step3-4 继续 ======
     if todo_path.exists():
-        ans = input("检测到 result_mapping_todo.csv 已存在。是否跳过 Step1-2，直接继续 Step3-4？(y/N): ").strip().lower()
+        ans = WEB_CONFIG.get("overwrite_existing", "y")
         if ans == "y":
             step3(mysql_url)
             step4()
@@ -44,7 +44,7 @@ def main():
     # ====== MANUAL：一次运行内询问是否继续 ======
     if opts.ai_level == AILevel.MANUAL:
         print("✅ 已完成 Step1-2。请手动编辑 result_mapping_todo.csv 的 Canonical_Name。")
-        ans = input("填完后是否继续执行 Step3-4？(y/N): ").strip().lower()
+        ans = WEB_CONFIG.get("overwrite_existing", "y")
         if ans == "y":
             step3(mysql_url)
             step4()
@@ -58,7 +58,7 @@ def main():
         print("🤖 正在生成 AI 建议列（不覆盖 Canonical_Name）...")
         step_ai_suggest()
         print("✅ 已生成建议列。请检查/必要时手动修改 Canonical_Name。")
-        ans = input("是否继续执行 Step3-4？(y/N): ").strip().lower()
+        ans = WEB_CONFIG.get("overwrite_existing", "y")
         if ans == "y":
             step3(mysql_url)
             step4()

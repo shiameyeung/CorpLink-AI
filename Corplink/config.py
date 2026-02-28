@@ -1,4 +1,21 @@
 # coding: utf-8
+import json
+import os
+
+def load_web_config():
+    """
+    尝试从当前运行目录（沙盒目录）读取 config.json。
+    如果文件不存在，则返回一个空字典，后续代码会使用默认值。
+    """
+    config_path = os.path.join(os.getcwd(), "config.json")
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+# 导出一个全局变量，供其他模块调用
+WEB_CONFIG = load_web_config()
+
 from pathlib import Path
 
 from .env_bootstrap import cute_box
@@ -7,13 +24,9 @@ from . import state
 from .options import RunOptions, KeywordMode, AILevel, ExtractMode
 
 def ask_mysql_url() -> str:
-    key_file = Path(__file__).with_name(".db_key")
-    if key_file.exists():
-        key = key_file.read_text().strip()
-    else:
-        key = input("请输入秘钥/キーを入力してください：user:pass@host\n>>>>>> ").strip()
-        key_file.write_text(key)
-    return f"mysql+pymysql://{key}:3306/na_data?charset=utf8mb4"
+    # 优先读取前端传来的数据库地址，如果没有，则使用你写死的默认地址
+    default_url = "mysql+pymysql://webapp:vE8#kZ9$nQ2!mP5@@127.0.0.1:3306/CorpLink?charset=utf8mb4"
+    return WEB_CONFIG.get("mysql_url", default_url)
 
 def wizard() -> RunOptions:
     # 1) Keyword
