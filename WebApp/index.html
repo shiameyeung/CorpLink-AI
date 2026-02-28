@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CorpLink-AI 処理コンソール</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            padding: 40px 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #1a1a1a;
+            border-bottom: 2px solid #007aff;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed #ccc;
+        }
+
+        .btn {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            background-color: #005ce6;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background-color: #ff3b30;
+        }
+
+        .btn-danger:hover {
+            background-color: #d63026;
+        }
+
+        .status-box {
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .status-idle {
+            background-color: #e5f0ff;
+            color: #007aff;
+        }
+
+        .status-running {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-finished {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        #log-area {
+            width: 100%;
+            height: 150px;
+            background: #1e1e1e;
+            color: #4af626;
+            padding: 10px;
+            font-family: monospace;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="card">
+        <h1>CorpLink-AI データ処理</h1>
+        <div id="status-indicator" class="status-box status-idle">現在の状態: 待機中 (IDLE)</div>
+
+        <div class="form-group">
+            <label><strong>1. ファイルを個別に選択:</strong></label><br>
+            <input type="file" id="file-input" multiple><br><br>
+            <label><strong>または、フォルダごとアップロード (階層保持):</strong></label><br>
+            <input type="file" id="folder-input" webkitdirectory directory multiple>
+        </div>
+
+        <div>
+            <button id="btn-start" class="btn" onclick="startProcessing()">処理を開始 (Start)</button>
+            <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">結果をダウンロード</button>
+            <button id="btn-cleanup" class="btn btn-danger" style="display:none;" onclick="cleanupTask()">タスク終了とデータ削除
+                (Cleanup)</button>
+        </div>
+
+        <label><br><strong>システムログ:</strong></label>
+        <textarea id="log-area" readonly>システム準備完了...</textarea>
+    </div>
+
+    <script>
+        const API_BASE = "/api";
+
+        function log(message) {
+            const logArea = document.getElementById('log-area');
+            logArea.value += '\n' + message;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function updateUI(status) {
+            const indicator = document.getElementById('status-indicator');
+            const btnStart = document.getElementById('btn-start');
+            const btnDownload = document.getElementById('btn-download');
+            const btnCleanup = document.getElementById('btn-cleanup');
+            const fileInput = document.getElementById('file-input');
+            const folderInput = document.getElementById('folder-input');
+
+            if (status === 0) {
+                indicator.className = "status-box status-idle";
+                indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
+                btnStart.style.display = "inline-block";
+                btnStart.disabled = false;
+                btnDownload.style.display = "none";
+                btnCleanup.style.display = "none";
+                fileInput.disabled = false;
+                folderInput.disabled = false;
+            } else if (status === 1) {
+                indicator.className = "status-box status-running";
+                indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
+                btnStart.disabled = true;
+                btnDownload.style.display = "none";
+                btnCleanup.style.display = "none";
+                fileInput.disabled = true;
+                folderInput.disabled = true;
+            } else if (status === 2) {
+                indicator.className = "status-box status-finished";
+                indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
+                btnStart.style.display = "none";
+                btnDownload.style.display = "inline-block";
+                btnCleanup.style.display = "inline-block";
+                fileInput.disabled = true;
+                folderInput.disabled = true;
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+                updateUI(data.current_status);
+            } catch (e) {
+                console.error("サーバーに接続できません");
+            }
+        }
+
+        function downloadResult() {
+            log("結果をダウンロードしています...");
+            window.location.href = `${API_BASE}/download`;
+        }
+
+        async function startProcessing() {
+            const files = document.getElementById('file-input').files;
+            const folderFiles = document.getElementById('folder-input').files;
+
+            if (files.length === 0 && folderFiles.length === 0) {
+                alert("ファイルまたはフォルダを選択してください！");
+                return;
+            }
+
+            const formData = new FormData();
+            const allFiles = [...files, ...folderFiles];
+            const pathsArray = []; // 用来强制保留结构
+
+            for (let i = 0; i < allFiles.length; i++) {
+                formData.append("files", allFiles[i]);
+                // 如果是文件夹上传，记录 webkitRelativePath；单文件则只记名字
+                const path = allFiles[i].webkitRelativePath || allFiles[i].name;
+                pathsArray.push(path);
+            }
+
+            // 将路径数组转换成 JSON 字符串，确保后端 100% 对齐
+            formData.append("paths", JSON.stringify(pathsArray));
+
+            log("アップロードと処理を開始します...");
+            updateUI(1);
+
+            try {
+                const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+                const result = await response.json();
+                if (response.ok) {
+                    log("完了: " + result.message);
+                    updateUI(2);
+                } else {
+                    log("エラー: " + result.detail);
+                    updateUI(0);
+                }
+            } catch (e) {
+                log("通信エラーが発生しました。");
+                updateUI(0);
+            }
+        }
+
+        async function cleanupTask() {
+            if (!confirm("本当にタスクを終了し、全てのデータを削除しますか？")) return;
+            log("環境をクリーンアップしています...");
+            try {
+                const response = await fetch(`${API_BASE}/cleanup`, { method: "POST" });
+                const result = await response.json();
+                log(result.message);
+                updateUI(0);
+                document.getElementById('file-input').value = "";
+                document.getElementById('folder-input').value = "";
+            } catch (e) {
+                log("クリーンアップに失敗しました。");
+            }
+        }
+
+
+        checkStatus();
+    </script>
+</body>
+
+</html>
