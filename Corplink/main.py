@@ -1,6 +1,4 @@
 # coding: utf-8
-from .env_bootstrap import ensure_env
-ensure_env()
 
 from sqlalchemy import create_engine
 from .env_bootstrap import cute_box
