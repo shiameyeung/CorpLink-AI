@@ -6,8 +6,17 @@ import os
 import subprocess
 import zipfile
 import urllib.request
-from typing import List
 import json
+import logging
+import traceback
+
+# === 设置带时间戳的后端日志 ===
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -20,8 +29,6 @@ app.add_middleware(
 )
 
 server_state = {"status": 0} 
-
-# 你的 app.py 所在的绝对路径
 BASE_DIR = "/var/www/html/app/CorpLink-AI"
 WORKSPACE_DIR = os.path.join(BASE_DIR, "temp_uploads")
 
@@ -37,20 +44,25 @@ async def get_status():
 async def upload_files(
     request: Request,
     file: UploadFile = File(...),
-    openai_api_key: str = Form(...),       # 接收 API Key
-    extract_mode: str = Form(...),         # 接收 数据源模式
-    keyword_mode: str = Form(...),         # 接收 关键词模式
-    custom_keywords: str = Form(""),       # 接收 自定义关键词（可选）
-    db_mode: str = Form(...),              # 接收 数据库模式
-    custom_db_url: str = Form("")          # 接收 自定义数据库URL（可选）
+    openai_api_key: str = Form(...),       
+    extract_mode: str = Form(...),         
+    keyword_mode: str = Form(...),         
+    custom_keywords: str = Form(""),       
+    db_mode: str = Form(...),              
+    custom_db_url: str = Form("")          
 ):
+    logger.info(f"=== 新しいタスクを受信しました: ファイル名 {file.filename} ===")
+    logger.info(f"パラメータ: extract_mode={extract_mode}, keyword_mode={keyword_mode}, db_mode={db_mode}")
+    
     if server_state["status"] != 0:
+        logger.warning("タスク拒否: 別のタスクが実行中です")
         raise HTTPException(status_code=400, detail="現在、別のタスクが処理中です。")
     
     server_state["status"] = 1
     
     try:
         # 1. 清理并重建沙盒目录
+        logger.info("環境と最新コードを準備中...")
         if os.path.exists(WORKSPACE_DIR):
             shutil.rmtree(WORKSPACE_DIR)
         os.makedirs(WORKSPACE_DIR, exist_ok=True)
@@ -74,6 +86,7 @@ async def upload_files(
         os.remove(local_zip_path)
 
         # 3. 处理用户上传的文件
+        logger.info("ユーザーファイルの配置中...")
         filename = file.filename.lower()
         if filename.endswith('.zip'):
             # 如果是 zip，先保存为临时文件，再解压到当前工作目录，完美保留层级
@@ -97,6 +110,7 @@ async def upload_files(
         # 4. 运行 launcher.py 并捕获日志
         venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         
+        logger.info("設定ファイルを生成中...")
         config_data = {
             "keyword_mode": keyword_mode,
             "extract_mode": extract_mode,
@@ -122,31 +136,39 @@ async def upload_files(
             json.dump(config_data, f, ensure_ascii=False, indent=4)
         
         # === B. 将 API Key 注入到安全的环境变量中运行 ===
+        venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         run_env = os.environ.copy()
         run_env["OPENAI_API_KEY"] = openai_api_key.strip()
 
         log_file_path = os.path.join(WORKSPACE_DIR, "run.log")
+        logger.info("サブプロセス (launcher.py) の実行を開始します...")
         
         with open(log_file_path, "w", encoding="utf-8") as log_file:
             process = subprocess.run(
                 [venv_python, "launcher.py"], 
                 cwd=WORKSPACE_DIR, 
-                env=run_env,                 # 带着 API KEY 的环境变量去运行！
+                env=run_env,                 
                 stdout=log_file,             
                 stderr=subprocess.STDOUT     
             )
             
         if process.returncode != 0:
+            logger.error(f"launcher.py がエラーコード {process.returncode} で終了しました。")
             with open(log_file_path, "r", encoding="utf-8") as log_file:
                 error_lines = log_file.readlines()[-15:]
             error_msg = "".join(error_lines)
             server_state["status"] = 0
             raise HTTPException(status_code=500, detail=f"実行エラー:\n{error_msg}")
         
+        logger.info("=== タスクが正常に完了しました ===")
         server_state["status"] = 2
         return {"message": "処理が完了しました！"}
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
+        # 打印出精准的堆栈报错信息到后台
+        logger.error("予期せぬエラーが発生しました:\n" + traceback.format_exc())
         server_state["status"] = 0
         raise HTTPException(status_code=500, detail=f"処理に失敗しました: {str(e)}")
 

@@ -179,9 +179,12 @@
         const API_BASE = "/api";
 
         function log(message) {
-            const logArea = document.getElementById('log-area');
-            logArea.value += '\n' + message;
-            logArea.scrollTop = logArea.scrollHeight;
+            const terminal = document.getElementById('log-terminal');
+            const now = new Date();
+            // 格式化为 HH:MM:SS.mmm
+            const timeString = now.toLocaleTimeString('ja-JP', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+            terminal.innerHTML += `[${timeString}] ${message}<br>`;
+            terminal.scrollTop = terminal.scrollHeight;
         }
 
         function updateUI(status) {
@@ -318,7 +321,17 @@
 
             try {
                 const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
-                const result = await response.json();
+
+                // 2. 严谨解析响应：防止后端返回非JSON内容导致报错被掩盖
+                let result;
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    result = await response.json();
+                } else {
+                    const text = await response.text();
+                    throw new Error(`サーバーから不正な応答がありました (HTTP ${response.status}): ` + text.substring(0, 100));
+                }
+
                 if (response.ok) {
                     log("完了: " + result.message);
                     updateUI(2);
@@ -327,7 +340,9 @@
                     updateUI(0);
                 }
             } catch (e) {
-                log("通信エラーが発生しました。");
+                // 3. 将真实的错误原因打印到界面上
+                console.error("Fetch Error: ", e);
+                log("通信例外が発生しました: " + e.message);
                 updateUI(0);
             }
         }
