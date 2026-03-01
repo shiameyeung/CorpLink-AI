@@ -145,8 +145,8 @@ async def upload_files(
         
         with open(log_file_path, "w", encoding="utf-8") as log_file:
             process = subprocess.run(
-                [venv_python, "launcher.py"], 
-                cwd=WORKSPACE_DIR, 
+                [venv_python, "-u", "launcher.py"],  # <--- 这里加上 "-u"
+                cwd=WORKSPACE_DIR,
                 env=run_env,                 
                 stdout=log_file,             
                 stderr=subprocess.STDOUT     
