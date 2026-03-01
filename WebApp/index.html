@@ -161,14 +161,15 @@
             <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
                 style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
         </div>
+
+        <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
     </div>
 
 
     <div>
-        <button id="btn-start" class="btn" onclick="startProcessing()">処理を開始 (Start)</button>
-        <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">結果をダウンロード</button>
-        <button id="btn-cleanup" class="btn btn-danger" style="display:none;" onclick="cleanupTask()">タスク終了とデータ削除
-            (Cleanup)</button>
+        <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">⬇️ 結果をダウンロード</button>
+        <button id="btn-cleanup" class="btn btn-danger" style="display:none;"
+            onclick="cleanupTask()">🗑️タスク終了・環境をクリーンアップ(Cleanup)</button>
     </div>
 
     <label><br><strong>システムログ:</strong></label>
