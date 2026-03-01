@@ -29,6 +29,33 @@ def ask_mysql_url() -> str:
     return WEB_CONFIG.get("mysql_url", default_url)
 
 def wizard() -> RunOptions:
+    # ====== 新增：Web 模式检测 ======
+    # 如果读取到了 config.json (WEB_CONFIG有内容)，则自动跳过所有 input()
+    if WEB_CONFIG:
+        print("🌐 检测到 Web 环境配置，自动读取参数，跳过手动输入...")
+        
+        km = str(WEB_CONFIG.get("keyword_mode", "1"))
+        if km == "2":
+            keyword_mode = KeywordMode.CUSTOM
+            custom_keys = WEB_CONFIG.get("custom_keywords", [])
+        else:
+            keyword_mode = KeywordMode.PRESET_2025
+            custom_keys = None
+            
+        a = str(WEB_CONFIG.get("ai_level", "3")) # 默认 3 全自动
+        ai_level = {"1": AILevel.MANUAL, "2": AILevel.ASSIST, "3": AILevel.AUTO}.get(a, AILevel.AUTO)
+        
+        e = str(WEB_CONFIG.get("extract_mode", "2")) # 默认 1 Lexis
+        extract_mode = ExtractMode.LEXIS if e != "2" else ExtractMode.FACTIVA
+        
+        return RunOptions(
+            keyword_mode=keyword_mode,
+            custom_keywords=custom_keys,
+            ai_level=ai_level,
+            extract_mode=extract_mode,
+        )
+
+    # ====== 终端模式：保持原有的手动输入逻辑 ======
     # 1) Keyword
     cute_box(
         "【参数配置】请选择关键词模式：\n"

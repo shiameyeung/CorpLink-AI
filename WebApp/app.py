@@ -88,10 +88,14 @@ async def upload_files(
         else:
             raise HTTPException(status_code=400, detail="サポートされていないファイル形式です。(.zip, .docx, .rtfのみ)")
         
-        # 4. 运行 launcher.py
+        # 4. 运行 launcher.py 并捕获日志
         venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         
+        # 这一步非常关键：将 Web UI 需要的参数强行写入 config.json，供 config.py 读取
         config_data = {
+            "keyword_mode": "1",
+            "ai_level": "3",       # 默认 3：全自动流程
+            "extract_mode": "1",   # 默认 1：Lexis (docx)
             "overwrite_existing": "y",
             "run_ai_autofill": "y",
             "confirm_standardize": "y"
@@ -101,7 +105,25 @@ async def upload_files(
         with open(config_file_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=4)
         
-        subprocess.run([venv_python, "launcher.py"], cwd=WORKSPACE_DIR, check=True)
+        # =================【日志优化核心部分】=================
+        log_file_path = os.path.join(WORKSPACE_DIR, "run.log")
+        
+        with open(log_file_path, "w", encoding="utf-8") as log_file:
+            process = subprocess.run(
+                [venv_python, "launcher.py"], 
+                cwd=WORKSPACE_DIR, 
+                stdout=log_file,             # 抓取所有 print 输出
+                stderr=subprocess.STDOUT     # 把报错也混进输出里
+            )
+            
+        if process.returncode != 0:
+            # 如果运行失败，读取 run.log 的最后 15 行，发给前端显示
+            with open(log_file_path, "r", encoding="utf-8") as log_file:
+                error_lines = log_file.readlines()[-15:]
+            error_msg = "".join(error_lines)
+            server_state["status"] = 0
+            raise HTTPException(status_code=500, detail=f"実行エラー:\n{error_msg}")
+        # ====================================================
         
         server_state["status"] = 2
         return {"message": "処理が完了しました！"}
