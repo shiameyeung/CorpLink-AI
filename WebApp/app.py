@@ -139,6 +139,8 @@ async def upload_files(
         venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         run_env = os.environ.copy()
         run_env["OPENAI_API_KEY"] = openai_api_key.strip()
+        
+        run_env["PYTHONUNBUFFERED"] = "1"
 
         log_file_path = os.path.join(WORKSPACE_DIR, "run.log")
         logger.info("サブプロセス (launcher.py) の実行を開始します...")
