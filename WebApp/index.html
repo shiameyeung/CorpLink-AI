@@ -113,22 +113,68 @@
 
         <div class="form-group">
             <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
-            <input type="file" id="file-input" accept=".zip,.docx,.rtf">
+            <input type="file" id="file-input" accept=".zip,.docx,.rtf" style="margin-top: 10px;">
             <p style="font-size: 0.9em; color: #364252;">
                 ※ 1つのファイルを処理する場合は、.docxまたは.rtfの拡張子のファイルをアップロードすること<br>
                 ※ 複数のファイルを処理する場合は、.zipに圧縮してアップロードしてください。なお、すべてのファイルの拡張子は同一（すべて.docx、またはすべて.rtf）であること
             </p>
         </div>
 
-        <div>
-            <button id="btn-start" class="btn" onclick="startProcessing()">処理を開始 (Start)</button>
-            <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">結果をダウンロード</button>
-            <button id="btn-cleanup" class="btn btn-danger" style="display:none;" onclick="cleanupTask()">タスク終了とデータ削除
-                (Cleanup)</button>
+        <div class="form-group">
+            <label><strong>OpenAI API Key:</strong> <span style="color:red;">*</span></label><br>
+            <input type="text" id="api-key" placeholder="sk-..." required
+                style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                OpenAIの関連ガイドを参照して、APIキーを取得してください。<br>
+                <a href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
+                    target="_blank">https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key</a>
+            </div>
         </div>
 
-        <label><br><strong>システムログ:</strong></label>
-        <textarea id="log-area" readonly>システム準備完了...</textarea>
+        <div class="form-group">
+            <label><strong>データソース形式:</strong> <span style="color:red;">*</span></label><br>
+            <div style="margin-top: 5px;">
+                <label><input type="radio" name="extract-mode" value="2" checked> Factiva (.rtf)</label>
+                <label style="margin-left: 15px;"><input type="radio" name="extract-mode" value="1"> LexisNexis
+                    (.docx)</label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label><strong>キーワードモード:</strong> <span style="color:red;">*</span></label><br>
+            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">エンティティ間にリレーションが存在すると判定するためのキーワードを指定してください。
+            </div>
+            <label><input type="radio" name="keyword-mode" value="1" checked onchange="toggleInputs()"> プリセット (2025 AI x
+                Healthcare)</label><br>
+            <label><input type="radio" name="keyword-mode" value="2" onchange="toggleInputs()"> カスタムキーワード</label>
+            <input type="text" id="custom-keywords" placeholder="例: AI, 医療, データ... (カンマ区切り)"
+                style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+        </div>
+
+        <div class="form-group">
+            <label><strong>データベース接続先:</strong> <span style="color:red;">*</span></label><br>
+            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">特にない限り、本アプリのデフォルトの内蔵データベースをそのまま使用してください。
+            </div>
+            <label><input type="radio" name="db-mode" value="internal" checked onchange="toggleInputs()">
+                既存のデータベース</label><br>
+            <label><input type="radio" name="db-mode" value="custom" onchange="toggleInputs()"> カスタムURL</label>
+            <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
+                style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+        </div>
+
+        <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
+    </div>
+
+
+    <div>
+        <button id="btn-start" class="btn" onclick="startProcessing()">処理を開始 (Start)</button>
+        <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">結果をダウンロード</button>
+        <button id="btn-cleanup" class="btn btn-danger" style="display:none;" onclick="cleanupTask()">タスク終了とデータ削除
+            (Cleanup)</button>
+    </div>
+
+    <label><br><strong>システムログ:</strong></label>
+    <textarea id="log-area" readonly>システム準備完了...</textarea>
     </div>
 
     <script>
@@ -174,6 +220,14 @@
                 fileInput.disabled = true;
                 folderInput.disabled = true;
             }
+        }
+
+        function toggleInputs() {
+            const kwMode = document.querySelector('input[name="keyword-mode"]:checked').value;
+            document.getElementById('custom-keywords').style.display = (kwMode === '2') ? 'block' : 'none';
+
+            const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
+            document.getElementById('custom-db-url').style.display = (dbMode === 'custom') ? 'block' : 'none';
         }
 
         async function checkStatus() {
@@ -225,25 +279,41 @@
 
         async function startProcessing() {
             const fileInput = document.getElementById('file-input');
+            const apiKey = document.getElementById('api-key').value.trim();
 
             if (fileInput.files.length === 0) {
                 alert("ファイルを選択してください！");
+                return;
+            }
+            if (!apiKey) {
+                alert("OpenAI API Key を入力してください！");
                 return;
             }
 
             const file = fileInput.files[0];
             const fileName = file.name.toLowerCase();
             const validExtensions = ['.zip', '.docx', '.rtf'];
-
-            // 再次确保文件后缀名正确
             if (!validExtensions.some(ext => fileName.endsWith(ext))) {
                 alert(".zip, .docx, .rtf ファイルのみアップロード可能です！");
                 return;
             }
 
+            // 获取表单设定值
+            const extractMode = document.querySelector('input[name="extract-mode"]:checked').value;
+            const keywordMode = document.querySelector('input[name="keyword-mode"]:checked').value;
+            const customKeywords = document.getElementById('custom-keywords').value;
+            const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
+            const customDbUrl = document.getElementById('custom-db-url').value;
+
+            // 组装表单数据传给后端
             const formData = new FormData();
-            // 注意这里改成了 "file"，并且不再传递 paths
             formData.append("file", file);
+            formData.append("openai_api_key", apiKey);
+            formData.append("extract_mode", extractMode);
+            formData.append("keyword_mode", keywordMode);
+            formData.append("custom_keywords", customKeywords);
+            formData.append("db_mode", dbMode);
+            formData.append("custom_db_url", customDbUrl);
 
             log("アップロードと処理を開始します...");
             updateUI(1);

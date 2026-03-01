@@ -36,7 +36,13 @@ async def get_status():
 @app.post("/upload")
 async def upload_files(
     request: Request,
-    file: UploadFile = File(...) # 改为接收单个文件
+    file: UploadFile = File(...),
+    openai_api_key: str = Form(...),       # 接收 API Key
+    extract_mode: str = Form(...),         # 接收 数据源模式
+    keyword_mode: str = Form(...),         # 接收 关键词模式
+    custom_keywords: str = Form(""),       # 接收 自定义关键词（可选）
+    db_mode: str = Form(...),              # 接收 数据库模式
+    custom_db_url: str = Form("")          # 接收 自定义数据库URL（可选）
 ):
     if server_state["status"] != 0:
         raise HTTPException(status_code=400, detail="現在、別のタスクが処理中です。")
@@ -91,46 +97,55 @@ async def upload_files(
         # 4. 运行 launcher.py 并捕获日志
         venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         
-        # 这一步非常关键：将 Web UI 需要的参数强行写入 config.json，供 config.py 读取
         config_data = {
-            "keyword_mode": "1",
-            "ai_level": "3",       # 默认 3：全自动流程
-            "extract_mode": "1",   # 默认 1：Lexis (docx)
-            "overwrite_existing": "y",
-            "run_ai_autofill": "y",
-            "confirm_standardize": "y"
+            "keyword_mode": keyword_mode,
+            "extract_mode": extract_mode,
+            "ai_level": "3",             # 强制全自动
+            "overwrite_existing": "y",   # 强制继续
+            "run_ai_autofill": "y",      # 强制AI清洗
+            "confirm_standardize": "y"   # 强制不确认直接入库
         }
+        
+        # 处理自定义关键词 (如果用户选择了 2，则把逗号分隔的字符串转成列表)
+        if keyword_mode == "2" and custom_keywords.strip():
+            keys_list = [k.strip() for k in custom_keywords.replace("，", ",").split(",") if k.strip()]
+            config_data["custom_keywords"] = keys_list
+
+        # 处理自定义数据库 (保护默认地址不暴露给前端)
+        if db_mode == "custom" and custom_db_url.strip():
+            config_data["mysql_url"] = custom_db_url.strip()
+        else:
+            config_data["mysql_url"] = "mysql+pymysql://webapp:vE8#kZ9$nQ2!mP5@@127.0.0.1:3306/CorpLink?charset=utf8mb4"
         
         config_file_path = os.path.join(WORKSPACE_DIR, "config.json")
         with open(config_file_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=4)
         
-        # =================【日志优化核心部分】=================
+        # === B. 将 API Key 注入到安全的环境变量中运行 ===
+        run_env = os.environ.copy()
+        run_env["OPENAI_API_KEY"] = openai_api_key.strip()
+
         log_file_path = os.path.join(WORKSPACE_DIR, "run.log")
         
         with open(log_file_path, "w", encoding="utf-8") as log_file:
             process = subprocess.run(
                 [venv_python, "launcher.py"], 
                 cwd=WORKSPACE_DIR, 
-                stdout=log_file,             # 抓取所有 print 输出
-                stderr=subprocess.STDOUT     # 把报错也混进输出里
+                env=run_env,                 # 带着 API KEY 的环境变量去运行！
+                stdout=log_file,             
+                stderr=subprocess.STDOUT     
             )
             
         if process.returncode != 0:
-            # 如果运行失败，读取 run.log 的最后 15 行，发给前端显示
             with open(log_file_path, "r", encoding="utf-8") as log_file:
                 error_lines = log_file.readlines()[-15:]
             error_msg = "".join(error_lines)
             server_state["status"] = 0
             raise HTTPException(status_code=500, detail=f"実行エラー:\n{error_msg}")
-        # ====================================================
         
         server_state["status"] = 2
         return {"message": "処理が完了しました！"}
 
-    except subprocess.CalledProcessError as e:
-        server_state["status"] = 0
-        raise HTTPException(status_code=500, detail="スクリプトの実行中にエラーが発生しました。")
     except Exception as e:
         server_state["status"] = 0
         raise HTTPException(status_code=500, detail=f"処理に失敗しました: {str(e)}")
