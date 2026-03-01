@@ -255,7 +255,7 @@
                     log("完了: " + result.message);
                     updateUI(2);
                 } else {
-                    log("エラー: " + result.detail);
+                    log("エラー: " + JSON.stringify(result.detail));
                     updateUI(0);
                 }
             } catch (e) {
