@@ -109,262 +109,267 @@
 
     <div class="card">
         <h1>CorpLink-AI データ処理</h1>
-        <div id="status-indicator" class="status-box status-idle">現在の状態: 待機中 (IDLE)</div>
+        <div class="card" id="upload-area">
+            <h1>📂 ファイルアップロード & 設定</h1>
 
-        <div class="form-group">
-            <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
-            <input type="file" id="file-input" accept=".zip,.docx,.rtf" style="margin-top: 10px;">
-            <p style="font-size: 0.9em; color: #364252;">
-                ※ 1つのファイルを処理する場合は、.docxまたは.rtfの拡張子のファイルをアップロードすること<br>
-                ※ 複数のファイルを処理する場合は、.zipに圧縮してアップロードしてください。なお、すべてのファイルの拡張子は同一（すべて.docx、またはすべて.rtf）であること
-            </p>
+            <div class="form-group">
+                <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
+                <input type="file" id="file-input" accept=".zip,.docx,.rtf" style="margin-top: 10px;">
+            </div>
+
+            <div class="form-group">
+                <label><strong>OpenAI API Key:</strong> <span style="color:red;">*</span></label><br>
+                <input type="text" id="api-key" placeholder="sk-..." required
+                    style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    OpenAIの関連ガイドを参照して、APIキーを取得してください。<br>
+                    <a href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
+                        target="_blank">https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key</a>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label><strong>データソース形式:</strong> <span style="color:red;">*</span></label><br>
+                <div style="margin-top: 5px;">
+                    <label><input type="radio" name="extract-mode" value="2" checked> Factiva (.rtf)</label>
+                    <label style="margin-left: 15px;"><input type="radio" name="extract-mode" value="1"> LexisNexis
+                        (.docx)</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label><strong>キーワードモード:</strong> <span style="color:red;">*</span></label><br>
+                <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                    エンティティ間にリレーションが存在すると判定するためのキーワードを指定してください。</div>
+                <label><input type="radio" name="keyword-mode" value="1" checked onchange="toggleInputs()"> プリセット (2025
+                    AI x
+                    Healthcare)</label><br>
+                <label><input type="radio" name="keyword-mode" value="2" onchange="toggleInputs()"> カスタムキーワード</label>
+                <input type="text" id="custom-keywords" placeholder="例: AI, 医療, データ... (カンマ区切り)"
+                    style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+            </div>
+
+            <div class="form-group">
+                <label><strong>データベース接続先:</strong> <span style="color:red;">*</span></label><br>
+                <div style="font-size: 12px; color: #666; margin-bottom: 8px;">特にない限り、本アプリのデフォルトの内蔵データベースをそのまま使用してください。
+                </div>
+                <label><input type="radio" name="db-mode" value="internal" checked onchange="toggleInputs()">
+                    既存のデータベース</label><br>
+                <label><input type="radio" name="db-mode" value="custom" onchange="toggleInputs()"> カスタムURL</label>
+                <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
+                    style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+            </div>
+
+            <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
         </div>
 
-        <div class="form-group">
-            <label><strong>OpenAI API Key:</strong> <span style="color:red;">*</span></label><br>
-            <input type="text" id="api-key" placeholder="sk-..." required
-                style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-            <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                OpenAIの関連ガイドを参照して、APIキーを取得してください。<br>
-                <a href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
-                    target="_blank">https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key</a>
+        <div class="card" id="status-area">
+            <h1>⚙️ 処理ステータス</h1>
+            <div id="status-indicator" class="status-box status-idle">
+                現在の状態: 待機中 (サーバーに接続しています...)
+            </div>
+
+            <div class="actions" style="margin-top: 15px;">
+                <button class="btn btn-secondary" id="btn-download" style="display:none;"
+                    onclick="window.location.href='/download'">⬇️ 結果をダウンロード</button>
+                <button class="btn btn-danger" id="btn-cleanup" style="display:none;" onclick="cleanupTask()">🗑️
+                    環境をクリーンアップ</button>
+            </div>
+
+            <div class="terminal" id="log-terminal">
+                システム準備完了...<br>
             </div>
         </div>
 
-        <div class="form-group">
-            <label><strong>データソース形式:</strong> <span style="color:red;">*</span></label><br>
-            <div style="margin-top: 5px;">
-                <label><input type="radio" name="extract-mode" value="2" checked> Factiva (.rtf)</label>
-                <label style="margin-left: 15px;"><input type="radio" name="extract-mode" value="1"> LexisNexis
-                    (.docx)</label>
-            </div>
-        </div>
+        <script>
+            const API_BASE = "/api";
 
-        <div class="form-group">
-            <label><strong>キーワードモード:</strong> <span style="color:red;">*</span></label><br>
-            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">エンティティ間にリレーションが存在すると判定するためのキーワードを指定してください。
-            </div>
-            <label><input type="radio" name="keyword-mode" value="1" checked onchange="toggleInputs()"> プリセット (2025 AI x
-                Healthcare)</label><br>
-            <label><input type="radio" name="keyword-mode" value="2" onchange="toggleInputs()"> カスタムキーワード</label>
-            <input type="text" id="custom-keywords" placeholder="例: AI, 医療, データ... (カンマ区切り)"
-                style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-        </div>
-
-        <div class="form-group">
-            <label><strong>データベース接続先:</strong> <span style="color:red;">*</span></label><br>
-            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">特にない限り、本アプリのデフォルトの内蔵データベースをそのまま使用してください。
-            </div>
-            <label><input type="radio" name="db-mode" value="internal" checked onchange="toggleInputs()">
-                既存のデータベース</label><br>
-            <label><input type="radio" name="db-mode" value="custom" onchange="toggleInputs()"> カスタムURL</label>
-            <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
-                style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-        </div>
-
-        <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
-    </div>
-
-
-    <div>
-        <button id="btn-download" class="btn" style="display:none;" onclick="downloadResult()">⬇️ 結果をダウンロード</button>
-        <button id="btn-cleanup" class="btn btn-danger" style="display:none;"
-            onclick="cleanupTask()">🗑️タスク終了・環境をクリーンアップ(Cleanup)</button>
-    </div>
-
-    <label><br><strong>システムログ:</strong></label>
-    <textarea id="log-area" readonly>システム準備完了...</textarea>
-    </div>
-
-    <script>
-        const API_BASE = "/api";
-
-        function log(message) {
-            const terminal = document.getElementById('log-terminal');
-            const now = new Date();
-            // 格式化为 HH:MM:SS.mmm
-            const timeString = now.toLocaleTimeString('ja-JP', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
-            terminal.innerHTML += `[${timeString}] ${message}<br>`;
-            terminal.scrollTop = terminal.scrollHeight;
-        }
-
-        function updateUI(status) {
-            const indicator = document.getElementById('status-indicator');
-            const btnStart = document.getElementById('btn-start');
-            const btnDownload = document.getElementById('btn-download');
-            const btnCleanup = document.getElementById('btn-cleanup');
-            const fileInput = document.getElementById('file-input');
-            const folderInput = document.getElementById('folder-input');
-
-            if (status === 0) {
-                indicator.className = "status-box status-idle";
-                indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
-                btnStart.style.display = "inline-block";
-                btnStart.disabled = false;
-                btnDownload.style.display = "none";
-                btnCleanup.style.display = "none";
-                fileInput.disabled = false;
-                folderInput.disabled = false;
-            } else if (status === 1) {
-                indicator.className = "status-box status-running";
-                indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
-                btnStart.disabled = true;
-                btnDownload.style.display = "none";
-                btnCleanup.style.display = "none";
-                fileInput.disabled = true;
-                folderInput.disabled = true;
-            } else if (status === 2) {
-                indicator.className = "status-box status-finished";
-                indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
-                btnStart.style.display = "none";
-                btnDownload.style.display = "inline-block";
-                btnCleanup.style.display = "inline-block";
-                fileInput.disabled = true;
-                folderInput.disabled = true;
-            }
-        }
-
-        function toggleInputs() {
-            const kwMode = document.querySelector('input[name="keyword-mode"]:checked').value;
-            document.getElementById('custom-keywords').style.display = (kwMode === '2') ? 'block' : 'none';
-
-            const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
-            document.getElementById('custom-db-url').style.display = (dbMode === 'custom') ? 'block' : 'none';
-        }
-
-        async function checkStatus() {
-            try {
-                const response = await fetch(`${API_BASE}/status`);
-                const data = await response.json();
-                updateUI(data.current_status);
-            } catch (e) {
-                console.error("サーバーに接続できません");
-            }
-        }
-
-        function downloadResult() {
-            log("結果をダウンロードしています...");
-            window.location.href = `${API_BASE}/download`;
-        }
-
-        function updateUI(status) {
-            const indicator = document.getElementById('status-indicator');
-            const btnStart = document.getElementById('btn-start');
-            const btnDownload = document.getElementById('btn-download');
-            const btnCleanup = document.getElementById('btn-cleanup');
-            const fileInput = document.getElementById('file-input');
-
-            if (status === 0) {
-                indicator.className = "status-box status-idle";
-                indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
-                btnStart.style.display = "inline-block";
-                btnStart.disabled = false;
-                btnDownload.style.display = "none";
-                btnCleanup.style.display = "none";
-                fileInput.disabled = false;
-            } else if (status === 1) {
-                indicator.className = "status-box status-running";
-                indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
-                btnStart.disabled = true;
-                btnDownload.style.display = "none";
-                btnCleanup.style.display = "none";
-                fileInput.disabled = true;
-            } else if (status === 2) {
-                indicator.className = "status-box status-finished";
-                indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
-                btnStart.style.display = "none";
-                btnDownload.style.display = "inline-block";
-                btnCleanup.style.display = "inline-block";
-                fileInput.disabled = true;
-            }
-        }
-
-        async function startProcessing() {
-            const fileInput = document.getElementById('file-input');
-            const apiKey = document.getElementById('api-key').value.trim();
-
-            if (fileInput.files.length === 0) {
-                alert("ファイルを選択してください！");
-                return;
-            }
-            if (!apiKey) {
-                alert("OpenAI API Key を入力してください！");
-                return;
+            function log(message) {
+                const terminal = document.getElementById('log-terminal');
+                const now = new Date();
+                // 格式化为 HH:MM:SS.mmm
+                const timeString = now.toLocaleTimeString('ja-JP', { hour12: false }) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+                terminal.innerHTML += `[${timeString}] ${message}<br>`;
+                terminal.scrollTop = terminal.scrollHeight;
             }
 
-            const file = fileInput.files[0];
-            const fileName = file.name.toLowerCase();
-            const validExtensions = ['.zip', '.docx', '.rtf'];
-            if (!validExtensions.some(ext => fileName.endsWith(ext))) {
-                alert(".zip, .docx, .rtf ファイルのみアップロード可能です！");
-                return;
+            function updateUI(status) {
+                const indicator = document.getElementById('status-indicator');
+                const btnStart = document.getElementById('btn-start');
+                const btnDownload = document.getElementById('btn-download');
+                const btnCleanup = document.getElementById('btn-cleanup');
+                const fileInput = document.getElementById('file-input');
+                const folderInput = document.getElementById('folder-input');
+
+                if (status === 0) {
+                    indicator.className = "status-box status-idle";
+                    indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
+                    btnStart.style.display = "inline-block";
+                    btnStart.disabled = false;
+                    btnDownload.style.display = "none";
+                    btnCleanup.style.display = "none";
+                    fileInput.disabled = false;
+                    folderInput.disabled = false;
+                } else if (status === 1) {
+                    indicator.className = "status-box status-running";
+                    indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
+                    btnStart.disabled = true;
+                    btnDownload.style.display = "none";
+                    btnCleanup.style.display = "none";
+                    fileInput.disabled = true;
+                    folderInput.disabled = true;
+                } else if (status === 2) {
+                    indicator.className = "status-box status-finished";
+                    indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
+                    btnStart.style.display = "none";
+                    btnDownload.style.display = "inline-block";
+                    btnCleanup.style.display = "inline-block";
+                    fileInput.disabled = true;
+                    folderInput.disabled = true;
+                }
             }
 
-            // 获取表单设定值
-            const extractMode = document.querySelector('input[name="extract-mode"]:checked').value;
-            const keywordMode = document.querySelector('input[name="keyword-mode"]:checked').value;
-            const customKeywords = document.getElementById('custom-keywords').value;
-            const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
-            const customDbUrl = document.getElementById('custom-db-url').value;
+            function toggleInputs() {
+                const kwMode = document.querySelector('input[name="keyword-mode"]:checked').value;
+                document.getElementById('custom-keywords').style.display = (kwMode === '2') ? 'block' : 'none';
 
-            // 组装表单数据传给后端
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("openai_api_key", apiKey);
-            formData.append("extract_mode", extractMode);
-            formData.append("keyword_mode", keywordMode);
-            formData.append("custom_keywords", customKeywords);
-            formData.append("db_mode", dbMode);
-            formData.append("custom_db_url", customDbUrl);
+                const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
+                document.getElementById('custom-db-url').style.display = (dbMode === 'custom') ? 'block' : 'none';
+            }
 
-            log("アップロードと処理を開始します...");
-            updateUI(1);
+            async function checkStatus() {
+                try {
+                    const response = await fetch(`${API_BASE}/status`);
+                    const data = await response.json();
+                    updateUI(data.current_status);
+                } catch (e) {
+                    console.error("サーバーに接続できません");
+                }
+            }
 
-            try {
-                const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+            function downloadResult() {
+                log("結果をダウンロードしています...");
+                window.location.href = `${API_BASE}/download`;
+            }
 
-                // 2. 严谨解析响应：防止后端返回非JSON内容导致报错被掩盖
-                let result;
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.includes("application/json")) {
-                    result = await response.json();
-                } else {
-                    const text = await response.text();
-                    throw new Error(`サーバーから不正な応答がありました (HTTP ${response.status}): ` + text.substring(0, 100));
+            function updateUI(status) {
+                const indicator = document.getElementById('status-indicator');
+                const btnStart = document.getElementById('btn-start');
+                const btnDownload = document.getElementById('btn-download');
+                const btnCleanup = document.getElementById('btn-cleanup');
+                const fileInput = document.getElementById('file-input');
+
+                if (status === 0) {
+                    indicator.className = "status-box status-idle";
+                    indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
+                    btnStart.style.display = "inline-block";
+                    btnStart.disabled = false;
+                    btnDownload.style.display = "none";
+                    btnCleanup.style.display = "none";
+                    fileInput.disabled = false;
+                } else if (status === 1) {
+                    indicator.className = "status-box status-running";
+                    indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
+                    btnStart.disabled = true;
+                    btnDownload.style.display = "none";
+                    btnCleanup.style.display = "none";
+                    fileInput.disabled = true;
+                } else if (status === 2) {
+                    indicator.className = "status-box status-finished";
+                    indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
+                    btnStart.style.display = "none";
+                    btnDownload.style.display = "inline-block";
+                    btnCleanup.style.display = "inline-block";
+                    fileInput.disabled = true;
+                }
+            }
+
+            async function startProcessing() {
+                const fileInput = document.getElementById('file-input');
+                const apiKey = document.getElementById('api-key').value.trim();
+
+                if (fileInput.files.length === 0) {
+                    alert("ファイルを選択してください！");
+                    return;
+                }
+                if (!apiKey) {
+                    alert("OpenAI API Key を入力してください！");
+                    return;
                 }
 
-                if (response.ok) {
-                    log("完了: " + result.message);
-                    updateUI(2);
-                } else {
-                    log("エラー: " + JSON.stringify(result.detail));
+                const file = fileInput.files[0];
+                const fileName = file.name.toLowerCase();
+                const validExtensions = ['.zip', '.docx', '.rtf'];
+                if (!validExtensions.some(ext => fileName.endsWith(ext))) {
+                    alert(".zip, .docx, .rtf ファイルのみアップロード可能です！");
+                    return;
+                }
+
+                // 获取表单设定值
+                const extractMode = document.querySelector('input[name="extract-mode"]:checked').value;
+                const keywordMode = document.querySelector('input[name="keyword-mode"]:checked').value;
+                const customKeywords = document.getElementById('custom-keywords').value;
+                const dbMode = document.querySelector('input[name="db-mode"]:checked').value;
+                const customDbUrl = document.getElementById('custom-db-url').value;
+
+                // 组装表单数据传给后端
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("openai_api_key", apiKey);
+                formData.append("extract_mode", extractMode);
+                formData.append("keyword_mode", keywordMode);
+                formData.append("custom_keywords", customKeywords);
+                formData.append("db_mode", dbMode);
+                formData.append("custom_db_url", customDbUrl);
+
+                log("アップロードと処理を開始します...");
+                updateUI(1);
+
+                try {
+                    const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+
+                    // 2. 严谨解析响应：防止后端返回非JSON内容导致报错被掩盖
+                    let result;
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        result = await response.json();
+                    } else {
+                        const text = await response.text();
+                        throw new Error(`サーバーから不正な応答がありました (HTTP ${response.status}): ` + text.substring(0, 100));
+                    }
+
+                    if (response.ok) {
+                        log("完了: " + result.message);
+                        updateUI(2);
+                    } else {
+                        log("エラー: " + JSON.stringify(result.detail));
+                        updateUI(0);
+                    }
+                } catch (e) {
+                    // 3. 将真实的错误原因打印到界面上
+                    console.error("Fetch Error: ", e);
+                    log("通信例外が発生しました: " + e.message);
                     updateUI(0);
                 }
-            } catch (e) {
-                // 3. 将真实的错误原因打印到界面上
-                console.error("Fetch Error: ", e);
-                log("通信例外が発生しました: " + e.message);
-                updateUI(0);
             }
-        }
 
-        async function cleanupTask() {
-            if (!confirm("本当にタスクを終了し、全てのデータを削除しますか？")) return;
-            log("環境をクリーンアップしています...");
-            try {
-                const response = await fetch(`${API_BASE}/cleanup`, { method: "POST" });
-                const result = await response.json();
-                log(result.message);
-                updateUI(0);
-                document.getElementById('file-input').value = ""; // 清空选择
-            } catch (e) {
-                log("クリーンアップに失敗しました。");
+            async function cleanupTask() {
+                if (!confirm("本当にタスクを終了し、全てのデータを削除しますか？")) return;
+                log("環境をクリーンアップしています...");
+                try {
+                    const response = await fetch(`${API_BASE}/cleanup`, { method: "POST" });
+                    const result = await response.json();
+                    log(result.message);
+                    updateUI(0);
+                    document.getElementById('file-input').value = ""; // 清空选择
+                } catch (e) {
+                    log("クリーンアップに失敗しました。");
+                }
             }
-        }
 
 
-        checkStatus();
-    </script>
+            checkStatus();
+        </script>
 </body>
 
 </html>
