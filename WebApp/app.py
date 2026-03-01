@@ -36,8 +36,7 @@ async def get_status():
 @app.post("/upload")
 async def upload_files(
     request: Request,
-    files: List[UploadFile] = File(...),
-    paths: str = Form(...) 
+    file: UploadFile = File(...) # 改为接收单个文件
 ):
     if server_state["status"] != 0:
         raise HTTPException(status_code=400, detail="現在、別のタスクが処理中です。")
@@ -68,33 +67,40 @@ async def upload_files(
         shutil.rmtree(extracted_folder)
         os.remove(local_zip_path)
 
-        # 3. 解析前端传来的路径列表，将用户文件存入沙盒（与代码同级）
-        path_list = json.loads(paths)
-        for i, file in enumerate(files):
-            safe_rel_path = path_list[i].lstrip("/") 
-            file_path = os.path.join(WORKSPACE_DIR, safe_rel_path)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        # 3. 处理用户上传的文件
+        filename = file.filename.lower()
+        if filename.endswith('.zip'):
+            # 如果是 zip，先保存为临时文件，再解压到当前工作目录，完美保留层级
+            temp_upload_zip = os.path.join(WORKSPACE_DIR, "temp_upload.zip")
+            with open(temp_upload_zip, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            with zipfile.ZipFile(temp_upload_zip, 'r') as zip_ref:
+                zip_ref.extractall(WORKSPACE_DIR)
+                
+            os.remove(temp_upload_zip) # 解压后删除临时 zip 文件
+            
+        elif filename.endswith('.docx') or filename.endswith('.rtf'):
+            # 如果是 docx 或 rtf，直接保存在沙盒根目录
+            file_path = os.path.join(WORKSPACE_DIR, file.filename)
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
+        else:
+            raise HTTPException(status_code=400, detail="サポートされていないファイル形式です。(.zip, .docx, .rtfのみ)")
         
         # 4. 运行 launcher.py
-        # 假设你的虚拟环境直接建在 /var/www/html/app/CorpLink-AI/venv
         venv_python = os.path.join(BASE_DIR, "venv/bin/python")
         
-        # 在沙盒目录中自动生成 config.json 供代码读取
-        # 你未来可以在前端网页加上复选框，把这些值作为参数传过来。现在先写死一套默认的高效配置：
         config_data = {
             "overwrite_existing": "y",
             "run_ai_autofill": "y",
             "confirm_standardize": "y"
-            # 如果你有数据库地址或者 API Key 也可以写在这里
         }
         
         config_file_path = os.path.join(WORKSPACE_DIR, "config.json")
         with open(config_file_path, "w", encoding="utf-8") as f:
             json.dump(config_data, f, ensure_ascii=False, indent=4)
         
-        # 使用 subprocess 运行，工作目录设为 WORKSPACE_DIR
         subprocess.run([venv_python, "launcher.py"], cwd=WORKSPACE_DIR, check=True)
         
         server_state["status"] = 2

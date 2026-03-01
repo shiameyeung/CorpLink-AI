@@ -112,10 +112,12 @@
         <div id="status-indicator" class="status-box status-idle">現在の状態: 待機中 (IDLE)</div>
 
         <div class="form-group">
-            <label><strong>1. ファイルを個別に選択:</strong></label><br>
-            <input type="file" id="file-input" multiple><br><br>
-            <label><strong>または、フォルダごとアップロード (階層保持):</strong></label><br>
-            <input type="file" id="folder-input" webkitdirectory directory multiple>
+            <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
+            <input type="file" id="file-input" accept=".zip,.docx,.rtf">
+            <p style="font-size: 0.9em; color: #364252;">
+                ※ 1つのファイルを処理する場合は、.docxまたは.rtfの拡張子のファイルをアップロードすること<br>
+                ※ 複数のファイルを処理する場合は、.zipに圧縮してアップロードしてください。なお、すべてのファイルの拡張子は同一（すべて.docx、またはすべて.rtf）であること
+            </p>
         </div>
 
         <div>
@@ -189,28 +191,59 @@
             window.location.href = `${API_BASE}/download`;
         }
 
-        async function startProcessing() {
-            const files = document.getElementById('file-input').files;
-            const folderFiles = document.getElementById('folder-input').files;
+        function updateUI(status) {
+            const indicator = document.getElementById('status-indicator');
+            const btnStart = document.getElementById('btn-start');
+            const btnDownload = document.getElementById('btn-download');
+            const btnCleanup = document.getElementById('btn-cleanup');
+            const fileInput = document.getElementById('file-input');
 
-            if (files.length === 0 && folderFiles.length === 0) {
-                alert("ファイルまたはフォルダを選択してください！");
+            if (status === 0) {
+                indicator.className = "status-box status-idle";
+                indicator.innerText = "現在の状態: 待機中 (新しいタスクを開始できます)";
+                btnStart.style.display = "inline-block";
+                btnStart.disabled = false;
+                btnDownload.style.display = "none";
+                btnCleanup.style.display = "none";
+                fileInput.disabled = false;
+            } else if (status === 1) {
+                indicator.className = "status-box status-running";
+                indicator.innerText = "現在の状態: 処理中 (システムロック中...)";
+                btnStart.disabled = true;
+                btnDownload.style.display = "none";
+                btnCleanup.style.display = "none";
+                fileInput.disabled = true;
+            } else if (status === 2) {
+                indicator.className = "status-box status-finished";
+                indicator.innerText = "現在の状態: 完了 (結果をダウンロードし、クリーンアップしてください)";
+                btnStart.style.display = "none";
+                btnDownload.style.display = "inline-block";
+                btnCleanup.style.display = "inline-block";
+                fileInput.disabled = true;
+            }
+        }
+
+        async function startProcessing() {
+            const fileInput = document.getElementById('file-input');
+
+            if (fileInput.files.length === 0) {
+                alert("ファイルを選択してください！");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const fileName = file.name.toLowerCase();
+            const validExtensions = ['.zip', '.docx', '.rtf'];
+
+            // 再次确保文件后缀名正确
+            if (!validExtensions.some(ext => fileName.endsWith(ext))) {
+                alert(".zip, .docx, .rtf ファイルのみアップロード可能です！");
                 return;
             }
 
             const formData = new FormData();
-            const allFiles = [...files, ...folderFiles];
-            const pathsArray = []; // 用来强制保留结构
-
-            for (let i = 0; i < allFiles.length; i++) {
-                formData.append("files", allFiles[i]);
-                // 如果是文件夹上传，记录 webkitRelativePath；单文件则只记名字
-                const path = allFiles[i].webkitRelativePath || allFiles[i].name;
-                pathsArray.push(path);
-            }
-
-            // 将路径数组转换成 JSON 字符串，确保后端 100% 对齐
-            formData.append("paths", JSON.stringify(pathsArray));
+            // 注意这里改成了 "file"，并且不再传递 paths
+            formData.append("file", file);
 
             log("アップロードと処理を開始します...");
             updateUI(1);
@@ -239,8 +272,7 @@
                 const result = await response.json();
                 log(result.message);
                 updateUI(0);
-                document.getElementById('file-input').value = "";
-                document.getElementById('folder-input').value = "";
+                document.getElementById('file-input').value = ""; // 清空选择
             } catch (e) {
                 log("クリーンアップに失敗しました。");
             }
