@@ -45,7 +45,7 @@ def wizard() -> RunOptions:
         a = str(WEB_CONFIG.get("ai_level", "3")) # 默认 3 全自动
         ai_level = {"1": AILevel.MANUAL, "2": AILevel.ASSIST, "3": AILevel.AUTO}.get(a, AILevel.AUTO)
         
-        e = str(WEB_CONFIG.get("extract_mode", "2")) # 默认 1 Lexis
+        e = str(WEB_CONFIG.get("extract_mode", "2")) # 默认 2 FACTIVA
         extract_mode = ExtractMode.LEXIS if e != "2" else ExtractMode.FACTIVA
         
         return RunOptions(
