@@ -125,11 +125,12 @@ async def upload_files(
             keys_list = [k.strip() for k in custom_keywords.replace("，", ",").split(",") if k.strip()]
             config_data["custom_keywords"] = keys_list
 
-        # 处理自定义数据库 (保护默认地址不暴露给前端)
+       # 将特殊符号进行了转义: # -> %23, $ -> %24, ! -> %21, @ -> %40
         if db_mode == "custom" and custom_db_url.strip():
             config_data["mysql_url"] = custom_db_url.strip()
         else:
-            config_data["mysql_url"] = "mysql+pymysql://webapp:vE8#kZ9$nQ2!mP5@@127.0.0.1:3306/CorpLink?charset=utf8mb4"
+            # 修改这里：使用 URL 编码后的密码
+            config_data["mysql_url"] = "mysql+pymysql://webapp:vE8%23kZ9%24nQ2%21mP5%40@127.0.0.1:3306/CorpLink?charset=utf8mb4"
         
         config_file_path = os.path.join(WORKSPACE_DIR, "config.json")
         with open(config_file_path, "w", encoding="utf-8") as f:

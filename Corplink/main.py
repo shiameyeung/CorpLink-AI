@@ -19,7 +19,8 @@ def main():
         print("✅ 数据库连接成功 / データベース接続成功")
     except Exception as e:
         cute_box(f"数据库连接失败：{e}", f"データベース接続 失敗：{e}", "❌")
-        return
+        import sys
+        sys.exit(1)  # 强制以错误状态码(1)退出程序！
 
     opts = wizard()
     apply_options_to_state(opts)
