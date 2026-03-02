@@ -1,5 +1,6 @@
 # coding: utf-8
 import json
+import os   # <-- 新增
 from typing import List, Dict
 
 import pandas as pd
@@ -8,6 +9,7 @@ from openai import OpenAI
 
 from .constants import BASE_DIR
 from .env_bootstrap import cute_box
+from .config import WEB_CONFIG
 
 def ask_gpt_batch(batch_data: List[Dict], api_key: str) -> Dict:
     client = OpenAI(api_key=api_key)
@@ -78,7 +80,16 @@ def step_ai_autofill():
         print(f"🔑 已自动加载保存的 API Key: {api_key[:8]}...")
     
     if not api_key:
-        api_key = WEB_CONFIG.get("run_ai_autofill", "y")
+        # 1. 检查是否允许运行 AI 清洗
+        run_flag = WEB_CONFIG.get("run_ai_autofill", "y")
+        if run_flag != "y":
+            return
+
+        # 2. 从环境变量中安全获取 API Key
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            print("❌ 未获取到 OpenAI API Key，跳过 AI 清洗步骤！", flush=True)
+            return
         if api_key:
             key_file.write_text(api_key)
             print("💾 API Key 已保存，下次无需输入。")
