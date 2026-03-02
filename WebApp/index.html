@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CorpLink-AI 処理コンソール - 作者: 楊　天楽</title>
+    <title>CorpLink-AI 処理コンソール - 楊　天楽</title>
     <style>
         body {
             font-family: "Helvetica Neue", Arial, sans-serif;
@@ -108,59 +108,64 @@
 <body>
 
     <div class="card">
-        <h1>CorpLink-AI データ処理</h1>
-        <div class="card" id="upload-area">
-            <h1>📂 ファイルアップロード & 設定</h1>
+        <h1>CorpLink-AI データ処理</h1><br>
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">作者：楊　天楽 (YO tenra) | GitHub: <a href="
+        </div>
+        <div class=" card" id="upload-area">
+                <h1>📂 ファイルアップロード & 設定</h1>
 
-            <div class="form-group">
-                <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
-                <input type="file" id="file-input" accept=".zip,.docx,.rtf" style="margin-top: 10px;">
-            </div>
-
-            <div class="form-group">
-                <label><strong>OpenAI API Key:</strong> <span style="color:red;">*</span></label><br>
-                <input type="text" id="api-key" placeholder="sk-..." required
-                    style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                    OpenAIの関連ガイドを参照して、APIキーを取得してください。<br>
-                    <a href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
-                        target="_blank">https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key</a>
+                <div class="form-group">
+                    <label><strong>アップロードするファイルを選択 (.zip, .docx, .rtf):</strong></label><br>
+                    <input type="file" id="file-input" accept=".zip,.docx,.rtf" style="margin-top: 10px;">
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label><strong>データソース形式:</strong> <span style="color:red;">*</span></label><br>
-                <div style="margin-top: 5px;">
-                    <label><input type="radio" name="extract-mode" value="2" checked> Factiva (.rtf)</label>
-                    <label style="margin-left: 15px;"><input type="radio" name="extract-mode" value="1"> LexisNexis
-                        (.docx)</label>
+                <div class="form-group">
+                    <label><strong>OpenAI API Key:</strong> <span style="color:red;">*</span></label><br>
+                    <input type="text" id="api-key" placeholder="sk-..." required
+                        style="width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        OpenAIの関連ガイドを参照して、APIキーを取得してください。<br>
+                        <a href="https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key"
+                            target="_blank">https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key</a>
+                    </div>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label><strong>キーワードモード:</strong> <span style="color:red;">*</span></label><br>
-                <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
-                    エンティティ間にリレーションが存在すると判定するためのキーワードを指定してください。</div>
-                <label><input type="radio" name="keyword-mode" value="1" checked onchange="toggleInputs()"> プリセット (2025
-                    AI x
-                    Healthcare)</label><br>
-                <label><input type="radio" name="keyword-mode" value="2" onchange="toggleInputs()"> カスタムキーワード</label>
-                <input type="text" id="custom-keywords" placeholder="例: AI, 医療, データ... (カンマ区切り)"
-                    style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-            </div>
-
-            <div class="form-group">
-                <label><strong>データベース接続先:</strong> <span style="color:red;">*</span></label><br>
-                <div style="font-size: 12px; color: #666; margin-bottom: 8px;">特にない限り、本アプリのデフォルトの内蔵データベースをそのまま使用してください。
+                <div class="form-group">
+                    <label><strong>データソース形式:</strong> <span style="color:red;">*</span></label><br>
+                    <div style="margin-top: 5px;">
+                        <label><input type="radio" name="extract-mode" value="2" checked> Factiva (.rtf)</label>
+                        <label style="margin-left: 15px;"><input type="radio" name="extract-mode" value="1"> LexisNexis
+                            (.docx)</label>
+                    </div>
                 </div>
-                <label><input type="radio" name="db-mode" value="internal" checked onchange="toggleInputs()">
-                    既存のデータベース</label><br>
-                <label><input type="radio" name="db-mode" value="custom" onchange="toggleInputs()"> カスタムURL</label>
-                <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
-                    style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
-            </div>
 
-            <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
+                <div class="form-group">
+                    <label><strong>キーワードモード:</strong> <span style="color:red;">*</span></label><br>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                        エンティティ間にリレーションが存在すると判定するためのキーワードを指定してください。</div>
+                    <label><input type="radio" name="keyword-mode" value="1" checked onchange="toggleInputs()"> プリセット
+                        (2025
+                        AI x
+                        Healthcare)</label><br>
+                    <label><input type="radio" name="keyword-mode" value="2" onchange="toggleInputs()">
+                        カスタムキーワード</label>
+                    <input type="text" id="custom-keywords" placeholder="例: AI, 医療, データ... (カンマ区切り)"
+                        style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+                </div>
+
+                <div class="form-group">
+                    <label><strong>データベース接続先:</strong> <span style="color:red;">*</span></label><br>
+                    <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                        特にない限り、本アプリのデフォルトの内蔵データベースをそのまま使用してください。
+                    </div>
+                    <label><input type="radio" name="db-mode" value="internal" checked onchange="toggleInputs()">
+                        既存のデータベース</label><br>
+                    <label><input type="radio" name="db-mode" value="custom" onchange="toggleInputs()"> カスタムURL</label>
+                    <input type="text" id="custom-db-url" placeholder="mysql+pymysql://user:pass@host:port/dbname"
+                        style="display:none; width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box;">
+                </div>
+
+                <button class="btn" id="btn-start" onclick="startProcessing()">▶ 処理を開始</button>
         </div>
 
         <div class="card" id="status-area">
