@@ -9,6 +9,139 @@ import urllib.request
 import json
 import logging
 import traceback
+# --- 在顶部补充引入包 ---
+import pandas as pd
+from openai import OpenAI
+import math
+# ---------------------
+
+# 新增一个专门用于存放过滤结果的文件夹
+FILTER_WORKSPACE_DIR = os.path.join(BASE_DIR, "filter_workspace")
+os.makedirs(FILTER_WORKSPACE_DIR, exist_ok=True)
+
+# 行业字典
+INDUSTRY_DICT = {
+    1: "金融・投資機関",
+    2: "政府・公共機関",
+    3: "ニュース・PRメディア",
+    4: "教育・研究機関",
+    5: "医療・ライフサイエンス",
+    6: "総合商社・大手",
+    7: "IT・ネット・通信",
+    8: "製造業・メーカー",
+    9: "小売・サービス・インフラ",
+    10: "その他・分類不能"
+}
+
+@app.post("/filter_process")
+async def process_matrix_filter(
+    file: UploadFile = File(...),
+    openai_api_key: str = Form(...),
+    exclude_industries: str = Form(...) # 逗号分隔的字符串，例如 "2,3,4"
+):
+    try:
+        # 1. 保存用户上传的 pivot_table
+        file_path = os.path.join(FILTER_WORKSPACE_DIR, "pivot_table_uploaded.csv")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 2. 读取 CSV，获取第一行（表头）的组织名
+        # index_col=0 表示第一列是行索引
+        df = pd.read_csv(file_path, index_col=0)
+        org_names = list(df.columns)
+        
+        # 3. 准备调用 OpenAI 进行批量分类
+        client = OpenAI(api_key=openai_api_key)
+        exclude_list = [int(x) for x in exclude_industries.split(",")]
+        
+        # 为了避免超大 Token，这里我们采用简单的批处理（每批 100 个）
+        batch_size = 100
+        classification_result = {}
+        
+        for i in range(0, len(org_names), batch_size):
+            batch_orgs = org_names[i:i+batch_size]
+            prompt = f"""
+            You are a business taxonomy expert. 
+            Assign each of the following organization names to one of the industry IDs (1 to 10).
+            [Categories]
+            1: Finance & Investment
+            2: Gov & Public Sector
+            3: News & PR Media
+            4: Education & Research
+            5: Healthcare & Life Sciences
+            6: Conglomerate / General
+            7: IT & Telecom
+            8: Manufacturing
+            9: Retail, Services & Infra
+            10: Other
+
+            Return ONLY a valid JSON object where keys are the exact organization names and values are the integer ID.
+            Organizations to classify: {batch_orgs}
+            """
+            
+            response = client.chat.completions.create(
+                model="gpt-4o-mini", # 使用 4o-mini 足够便宜且快
+                response_format={ "type": "json_object" },
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0
+            )
+            
+            batch_json = json.loads(response.choices[0].message.content)
+            classification_result.update(batch_json)
+            
+        # 4. 构建 organization_list.csv (含判断结果)
+        org_list_data = []
+        orgs_to_drop = []
+        
+        for org in org_names:
+            ind_id = classification_result.get(org, 10) # 默认10
+            ind_name = INDUSTRY_DICT.get(ind_id, "不明")
+            status = "排除" if ind_id in exclude_list else "保留"
+            
+            if status == "排除":
+                orgs_to_drop.append(org)
+                
+            org_list_data.append({
+                "Organization": org,
+                "Industry_ID": ind_id,
+                "Industry_Name": ind_name,
+                "Status": status
+            })
+            
+        df_orgs = pd.DataFrame(org_list_data)
+        df_orgs.to_csv(os.path.join(FILTER_WORKSPACE_DIR, "organization_list.csv"), index=False, encoding='utf-8-sig')
+        
+        # 5. Pandas 核心操作：矩阵裁剪
+        # 只要行名或列名在排除列表里，一并删去
+        # 注意：需要确保要 drop 的项目确实存在于 df 的 index 和 columns 中
+        valid_drop_cols = [col for col in orgs_to_drop if col in df.columns]
+        valid_drop_rows = [row for row in orgs_to_drop if row in df.index]
+        
+        df_filtered = df.drop(columns=valid_drop_cols)
+        df_filtered = df_filtered.drop(index=valid_drop_rows)
+        
+        # 保存裁剪后的矩阵
+        df_filtered.to_csv(os.path.join(FILTER_WORKSPACE_DIR, "pivot_table_filtered.csv"), encoding='utf-8-sig')
+        
+        return {"message": f"成功！全 {len(org_names)} 組織中、{len(orgs_to_drop)} 組織を除外しました。"}
+
+    except Exception as e:
+        logger.error(f"Filter Process Error: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/download_filter_result")
+async def download_filter_result():
+    zip_path = os.path.join(BASE_DIR, "CorpLink_Filtered_Result.zip")
+    
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        org_csv = os.path.join(FILTER_WORKSPACE_DIR, "organization_list.csv")
+        piv_csv = os.path.join(FILTER_WORKSPACE_DIR, "pivot_table_filtered.csv")
+        if os.path.exists(org_csv):
+            zipf.write(org_csv, "organization_list.csv")
+        if os.path.exists(piv_csv):
+            zipf.write(piv_csv, "pivot_table_filtered.csv")
+            
+    return FileResponse(zip_path, media_type="application/zip", filename="CorpLink_Filtered_Result.zip")
 
 # === 设置带时间戳的后端日志 ===
 logging.basicConfig(
