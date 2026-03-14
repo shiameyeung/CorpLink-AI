@@ -15,9 +15,6 @@ from openai import OpenAI
 import math
 # ---------------------
 
-# 新增一个专门用于存放过滤结果的文件夹
-FILTER_WORKSPACE_DIR = os.path.join(BASE_DIR, "filter_workspace")
-os.makedirs(FILTER_WORKSPACE_DIR, exist_ok=True)
 
 # 行业字典
 INDUSTRY_DICT = {
@@ -164,6 +161,9 @@ app.add_middleware(
 server_state = {"status": 0} 
 BASE_DIR = "/var/www/html/app/CorpLink-AI"
 WORKSPACE_DIR = os.path.join(BASE_DIR, "temp_uploads")
+
+FILTER_WORKSPACE_DIR = os.path.join(BASE_DIR, "filter_workspace")
+os.makedirs(FILTER_WORKSPACE_DIR, exist_ok=True)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
