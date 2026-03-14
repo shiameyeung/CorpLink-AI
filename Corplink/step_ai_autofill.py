@@ -38,6 +38,8 @@ def ask_gpt_batch(batch_data: List[Dict], api_key: str) -> Dict:
     1. General Nouns / Not Proper Nouns (e.g., "external researchers", "local governments", "our partners", "the committee", "anime", "video games")
     2. Job Titles / Departments (e.g., "CEO", "Sales Department")
     3. Individuals (unless the name refers to a sole proprietorship/studio)
+    4. Press Release Distributors & Reporting Sources (e.g., "PR Newswire", "Business Wire", "GlobeNewswire", "Reuters", "Bloomberg", "Nikkei"). 
+    In the context of constructing inter-firm relationship networks from news texts, these entities typically act as the publisher, wire service, or source of the information rather than actual corporate actors interacting in the strategic event. They create structural noise in network topology and MUST be set to "is_company": false.
 
     Rules for "clean_name":
     - Remove legal suffixes (Inc., Ltd., Corp., K.K., etc.).
