@@ -1,0 +1,5 @@
+# Ignore everything in the root except Corplink/ and WebApp/
+README.md
+launcher.py
+main.py
+legacy/
