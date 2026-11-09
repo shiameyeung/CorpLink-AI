@@ -6,106 +6,66 @@
 
 ## About the Core Code
 
-Inter-organizational relationships, such as those between enterprises, are very important in business decision-making
+### Purpose
 
-There is a need to research and analyze the characteristics of inter-enterprise relationships, find commonalities, write papers, and provide methodologies
+A research prototype that converts news articles into pairs of company names and adjacency matrices for network analysis. It organizes information from news articles into data for studying patterns in intercompany relationships.
 
-The analysis requires a large amount of paired relationship data
+### Processing workflow
 
-English articles in commercial news databases implicitly contain a large amount of relationship information
+1. Read news articles from DOCX or RTF files.
+2. Select sentences containing keywords that indicate relationships, such as `cooperat` and `bind`, and use spaCy’s `en_core_web_sm` to extract candidate organization names.
+3. Use Sentence-Transformers and RapidFuzz to filter candidates and match similar names.
+4. Reuse saved decisions by consulting the exclusion results and name mappings stored in MySQL. The exclusion table stores decisions about candidates that should not be treated as organization names; the name-mapping table links candidate names to normalized names.
+5. Use `gpt-4o-mini` to assess candidates that remain unresolved after matching, then save the name mappings and exclusion decisions.
+6. Export company-name pairs and adjacency matrices as CSV files for subsequent network analysis.
 
-Direct full-text analysis: USD 25 / 1,000,000 English words of news data
+### Model calls and result reuse
 
-It is too expensive, a cheaper solution is needed
+The pipeline prioritizes local matching and saved results, calling the model only for candidates that need further judgment. It reuses these results in subsequent processing to reduce the need to assess the same names repeatedly.
 
-Import docx or rtf files
-
-Local full-text search to pinpoint sentences containing keywords indicating relationships, such as cooperat and bind
-
-Use spaCy and the en_core_web_sm plugin on sentences to extract preliminary suspected organization names
-
-Process preliminary suspected organization names using Sentence-Transformers and RapidFuzz for filtering and fuzzy matching
-
-Further compare and match with existing ban data tables and suspected organization name-regular organization name data tables in the MySQL database
-* ban data table: Used to filter out suspected organization names that have been marked as non-organization names
-* Suspected organization name-regular organization name data table: For existing suspected organization names, replace them directly with regular organization names
-
-For suspected organization names that do not appear in the ban data table or the suspected organization name-regular organization name data table:
-* Call the 4o-mini model of the OpenAI API to obtain regular organization names. Regarding costs:
-    * No historical data of similar industries or scenarios exists in the database: USD 0.006 / 1,000,000 English words of news data
-        * The cost is 1/4,000th of full-text recognition
-    * Historical data of similar industries or scenarios exists in the database: USD 0.0015 / 1,000,000 English words of news data
-        * The cost is 1/17,000th of full-text recognition
-    * Exactly matching historical data exists in the database: 0 cost
-
-Save the current processing results to the MySQL database for priority use of existing data in subsequent processing
-
-Further reduce the number of tokens for subsequent OpenAI API calls, thereby further lowering costs
-
-Summary: Build a localized automated processing tool for "news data → organizational relationships" that becomes smarter and cheaper the more it is used
+API usage varies with the input data, repeated names, and matches with previously saved data.
 
 
 ## About the Accompanying Web APP
 
-Running python files locally requires a certain operational threshold (configuring the environment, code files, etc.)
+The web interface brings together file input, parameter settings, and result downloads in a browser. Upload a ZIP file containing the news articles, enter the processing parameters and API key, and download the results when processing is complete.
 
-Provide a one-stop, one-click APP to simplify use and lower the threshold
+This repository contains the code for a research prototype. Set up the runtime environment and connection settings, then verify that it works in your environment before use.
 
-Users only need to upload the news data file packaged as a .zip, select processing parameters, and input the API key
+## Development approach
 
-Click to start processing, wait a few minutes to hours, and then download the results
+I developed this prototype to support news analysis in my research lab. I integrated code suggestions from Gemini and ChatGPT and deployed it using Git.
 
 
 # Corp-link AI 概要
 
 ## コアコードについて
 
-企業等の組織間関係は経営意思決定において非常に重要
+### 用途
 
-企業間関係の特徴を研究・分析し、共通点を探り、論文を執筆し、方法論を提供する必要
+ニュース記事から企業名のペアと隣接行列を作成する、ネットワーク分析向けの研究用プロトタイプ。企業間関係の特徴を調べるため、ニュース記事に含まれる情報を分析用データに整理する。
 
-その分析には大量のペア関係データが必要
+### 処理の流れ
 
-商用ニュースデータベース内の英語記事には大量の関係情報が暗黙的に含まれている
+1. DOCXまたはRTFのニュース記事を読み込む。
+2. `cooperat`や`bind`など、関係を示すキーワードを含む文を選び、spaCyの`en_core_web_sm`で組織名の候補を抽出する。
+3. Sentence-TransformersとRapidFuzzを使い、候補を絞り込み、表記の近い名称を照合する。
+4. MySQLに保存した除外判定の結果と名称の対応表を参照し、保存済みの判定結果を再利用する。除外表には組織名として扱わない候補の判定結果を、対応表には名称候補と正規化した名称の対応関係を保存する。
+5. 照合で対応が確定しなかった名称候補を`gpt-4o-mini`で判定し、名称の対応関係と除外判定の結果を保存する。
+6. 企業名のペアと隣接行列をCSVとして出力し、後続のネットワーク分析に利用する。
 
-直接の全文分析：USD 25 / 1,000,000 英語文字ニュースデータ
+### モデルの呼び出しと結果の再利用
 
-コストが高すぎるため、安価なソリューションが必要
+ローカルの照合と保存済みの結果を優先し、追加の判断が必要な候補に絞ってモデルを呼び出す。得られた結果を以後の処理で再利用し、同じ名称についての判定を繰り返す手間を減らす。
 
-docxまたはrtfファイルをインポート
-
-ローカルで全文検索を行い、cooperatやbindなど関係を示すキーワードを含む文を特定
-
-文に対してspaCy、en_core_web_smプラグインを使用し、初期の疑似組織名を抽出
-
-初期の疑似組織名に対し、Sentence-TransformersやRapidFuzzを使用してフィルタリングとあいまいマッチングを行う
-
-さらに、MySQLデータベースの既存のbanデータテーブル、疑似組織名-正規組織名データテーブルと比較・マッチングを行う
-
-- banデータテーブル：すでに非組織名としてマークされている疑似組織名を除外するために使用
-- 疑似組織名-正規組織名データテーブル：既存の疑似組織名について、直接正規組織名に置換
-
-banデータテーブル、疑似組織名-正規組織名データテーブルに存在しない疑似組織名について：
-
-- OpenAI APIの 4o-mini モデルを呼び出し、正規組織名を取得する。費用について：
-    - データベースに類似の業界・シナリオの履歴データが存在しない場合：USD 0.006 / 1,000,000 英語文字ニュースデータ
-        - かかる費用は全文認識の4,000分の1
-    - データベースに類似の業界・シナリオの履歴データが存在する場合：USD 0.0015 / 1,000,000 英語文字ニュースデータ
-        - かかる費用は全文認識の17,000分の1
-    - データベースに完全一致する履歴データが存在する場合：費用 0
-
-今回の処理結果をMySQLデータベースに保存し、以後の処理で既存データを優先的に使用できるように
-
-以降のOpenAI API呼び出し時のトークン数をさらに削減し、それによりさらなるコスト削減
-
-まとめ：使えば使うほどスマートになり、低コストになるローカライズされた「ニュースデータ→組織関係」の自動処理ツールを構築
+APIの利用量は、入力データ、名称の重複、保存済みデータとの一致状況によって変わる。
 
 ## 付属の Web APP について
 
-ローカルで python ファイルを実行するには、一定の操作ハードルがある（環境構築、コードファイルなど）
+ファイルの入力、パラメーターの設定、結果のダウンロードをブラウザーで行える形にまとめた。ニュース記事をまとめたZIPファイルをアップロードし、処理パラメーターとAPIキーを入力する。処理完了後に結果をダウンロードする。
 
-ワンストップ、ワンクリックの APP を提供し、使用を簡素化してハードルを下げる
+このリポジトリでは研究用プロトタイプのコードを公開している。実行環境の準備と接続設定を行い、動作を確認して利用する。
 
-ユーザーは .zip に圧縮されたニュースデータファイルをアップロードし、処理パラメータを選択し、API key を入力するだけでよい
+## 開発の進め方
 
-「処理開始」をクリックし、数分から数時間待って、結果をダウンロードするだけで完了
+研究室でのニュース分析を支えるために開発した。GeminiとChatGPTから得たコード案を統合し、Gitを使ってデプロイした。
